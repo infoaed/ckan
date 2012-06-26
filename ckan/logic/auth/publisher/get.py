@@ -132,7 +132,7 @@ def group_show(context, data_dict):
     userobj = model.User.get( user )
 
     if group.state == 'deleted':
-        if not user or \
+        if not userobj or \
            not _groups_intersect( userobj.get_groups('organization'), group.get_groups('organization') ):
             return {'success': False, 'msg': _('User %s not authorized to show group %s') % (str(user),group.id)}
 
