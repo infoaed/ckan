@@ -53,6 +53,9 @@ def package_create(context, data_dict):
             package_plugin.check_data_dict(data_dict)
 
     data, errors = validate(data_dict, schema, context)
+    log.debug('package_create validate_errs=%r user=%s package=%s data_dict=%r',
+              errors, context.get('user'),
+              data_dict.get('name'), data_dict)
 
     if errors:
         model.Session.rollback()
@@ -258,6 +261,8 @@ def group_create(context, data_dict):
         schema = group_plugin.form_to_db_schema()
 
     data, errors = validate(data_dict, schema, context)
+    log.debug('group_create validate_errs=%r user=%s group=%s data_dict=%r',
+              errors, context.get('user'), data_dict.get('name'), data_dict)
 
     if errors:
         session.rollback()
@@ -278,6 +283,8 @@ def group_create(context, data_dict):
         if parent_group:
             member = model.Member(group=parent_group, table_id=group.id, table_name='group')
             session.add(member)
+            log.debug('Group %s is made child of group %s',
+                      group.name, parent_group.name)
 
     if user:
         admins = [model.User.by_name(user.decode('utf8'))]
