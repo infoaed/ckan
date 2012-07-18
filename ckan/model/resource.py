@@ -47,7 +47,7 @@ resource_table = Table(
     Column('cache_last_updated', types.DateTime),
     Column('webstore_url', types.UnicodeText),
     Column('webstore_last_updated', types.DateTime),
-    
+
     Column('extras', JsonDictType),
     )
 
@@ -70,7 +70,7 @@ class Resource(vdm.sqlalchemy.RevisionedObjectMixin,
                vdm.sqlalchemy.StatefulObjectMixin,
                DomainObject):
     extra_columns = None
-    def __init__(self, resource_group_id=None, url=u'', 
+    def __init__(self, resource_group_id=None, url=u'',
                  format=u'', description=u'', hash=u'',
                  extras=None,
                  **kwargs):
@@ -123,9 +123,9 @@ class Resource(vdm.sqlalchemy.RevisionedObjectMixin,
         ))
         resource = query.first()
         if resource == None:
-            resource = cls.by_name(reference)            
+            resource = cls.by_name(reference)
         return resource
-        
+
     @classmethod
     def get_columns(cls, extra_columns=True):
         '''Returns the core editable columns of the resource.'''
@@ -172,6 +172,7 @@ class ResourceGroup(vdm.sqlalchemy.RevisionedObjectMixin,
         self.sort_order = sort_order
         self.label = label
         self.extras = extras or {}
+        self.state = 'active'
 
         extra_columns = self.get_extra_columns()
         for field in extra_columns:
@@ -190,7 +191,7 @@ class ResourceGroup(vdm.sqlalchemy.RevisionedObjectMixin,
         for k, v in self.extras.items() if self.extras else []:
             _dict[k] = v
         return _dict
-        
+
     @classmethod
     def get_columns(cls, extra_columns=True):
         '''Returns the core editable columns of the resource.'''
@@ -206,7 +207,7 @@ class ResourceGroup(vdm.sqlalchemy.RevisionedObjectMixin,
             for field in cls.extra_columns:
                 setattr(cls, field, DictProxy(field, 'extras'))
         return cls.extra_columns
-    
+
 
 ## Mappers
 
@@ -248,7 +249,7 @@ mapper(ResourceGroup, resource_group_table, properties={
 vdm.sqlalchemy.modify_base_object_mapper(Resource, Revision, State)
 ResourceRevision = vdm.sqlalchemy.create_object_version(
     mapper, Resource, resource_revision_table)
-    
+
 vdm.sqlalchemy.modify_base_object_mapper(ResourceGroup, Revision, State)
 ResourceGroupRevision = vdm.sqlalchemy.create_object_version(
     mapper, ResourceGroup, resource_group_revision_table)
@@ -256,36 +257,8 @@ ResourceGroupRevision = vdm.sqlalchemy.create_object_version(
 ResourceGroupRevision.related_packages = lambda self: [self.continuity.package]
 ResourceRevision.related_packages = lambda self: [self.continuity.resouce_group.package]
 
-import vdm.sqlalchemy.stateful
-# TODO: move this into vdm
-def add_stateful_m21(object_to_alter, m21_property_name,
-        underlying_m21_attrname, identifier, **kwargs):
-    from sqlalchemy.orm import object_session
-    def _f(obj_to_delete):
-        sess = object_session(obj_to_delete)
-        if sess: # for tests at least must support obj not being sqlalchemy
-            sess.expunge(obj_to_delete)
-
-    active_list = vdm.sqlalchemy.stateful.DeferredProperty(
-            underlying_m21_attrname,
-            vdm.sqlalchemy.stateful.StatefulList,
-            # these args are passed to StatefulList
-            # identifier if url (could use id but have issue with None)
-            identifier=identifier,
-            unneeded_deleter=_f,
-            base_modifier=lambda x: x.get_as_of()
-            )
-    setattr(object_to_alter, m21_property_name, active_list)
-
 def resource_identifier(obj):
     return obj.id
-
-
-add_stateful_m21(Package, 'resource_groups', 'resource_groups_all',
-                 resource_identifier)
-add_stateful_m21(ResourceGroup, 'resources', 'resources_all',
-                 resource_identifier)
-
 
 
 class DictProxy(object):
