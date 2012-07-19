@@ -53,6 +53,18 @@ To run the celery daemon you have two options:
 
      paster celeryd --config=/path/to/file.ini
 
+Celery options
+--------------
+
+Celery can be configured on both the command-line and in the CKAN configuration. For example, the maximum number of concurrent processes defaults to the number of processor cores, which may be too many (e.g. considering the database connection limit). To limit it, use the 'concurrency' option, either in your CKAN config::
+
+ [app:celery]
+ CELERYD_CONCURRENCY = 4
+
+or with a command-line parameter::
+
+ paster celeryd run concurrency=4
+
 
 Writing Background Tasks
 ==========================
@@ -174,3 +186,4 @@ name given in the decorator::
 
 If you don't want to wait a period of time you can use the eta datetime
 parameter to specify an explicit time to run the task (i.e. 9AM tomorrow)
+
