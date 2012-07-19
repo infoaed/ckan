@@ -76,6 +76,17 @@ class Member(vdm.sqlalchemy.RevisionedObjectMixin,
         # TODO do we want to return all related packages or certain ones?
         return Session.query(Package).filter_by(id=self.table_id).all()
 
+    def __unicode__(self):
+        if self.table_name == 'package':
+            table_info = 'package=%s' % Session.query(Package).get(self.table_id).name
+        elif self.table_name == 'group':
+            table_info = 'group=%s' % Session.query(Group).get(self.table_id).name
+        else:
+            table_info = 'table_name=%s table_id=%s' % (self.table_name, self.table_id)
+        return u'<Member group=%s %s capacity=%s state=%s>' % \
+               (self.group.name if self.group else repr(self.group),
+                table_info, self.capacity, self.state)
+
 class Group(vdm.sqlalchemy.RevisionedObjectMixin,
             vdm.sqlalchemy.StatefulObjectMixin,
             DomainObject):
