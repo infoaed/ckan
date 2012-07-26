@@ -104,24 +104,40 @@ def render(template_name, extra_vars=None, cache_key=None, cache_type=None,
 
     ## Caching Logic
     allow_cache = True
+    page_name = '%s:%s' % (request.path, template_name)
+    log = logging.getLogger(__name__)
+
     # Force cache or not if explicit.
     if cache_force is not None:
+        if not bool(cache_force):
+            log.debug('Not caching %s because cache_force=%s', page_name,
+                      cache_force)
         allow_cache = cache_force
     # Do not allow caching of pages for logged in users/flash messages etc.
     elif session.last_accessed:
+        log.debug('Not caching %s because logged in user / flash messages. '
+                  'session.last_accessed=%s',
+                  page_name, session.last_accessed)
         allow_cache = False
     # Tests etc.
     elif 'REMOTE_USER' in request.environ:
+        log.debug('Not caching %s because logged in user', page_name)
         allow_cache = False
     # Don't cache if based on a non-cachable template used in this.
     elif request.environ.get('__no_cache__'):
+        log.debug('Not caching %s because __no_cache__ in environment',
+                  page_name)
         allow_cache = False
     # Don't cache if we have set the __no_cache__ param in the query string.
     elif request.params.get('__no_cache__'):
+        log.debug('Not caching %s because __no_cache__ in request params',
+                  page_name)
         allow_cache = False
     # Don't cache if we have extra vars containing data.
     elif extra_vars:
         for k, v in extra_vars.iteritems():
+            log.debug('Not caching %s because existence of extra_vars: %r',
+                      page_name, h.truncate(extra_vars, 50))
             allow_cache = False
             break
     # Record cachability for the page cache if enabled
