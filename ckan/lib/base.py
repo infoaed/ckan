@@ -133,13 +133,6 @@ def render(template_name, extra_vars=None, cache_key=None, cache_type=None,
         log.debug('Not caching %s because __no_cache__ in request params',
                   page_name)
         allow_cache = False
-    # Don't cache if we have extra vars containing data.
-    elif extra_vars:
-        for k, v in extra_vars.iteritems():
-            log.debug('Not caching %s because existence of extra_vars: %r',
-                      page_name, h.truncate(extra_vars, 50))
-            allow_cache = False
-            break
     # Record cachability for the page cache if enabled
     request.environ['CKAN_PAGE_CACHABLE'] = allow_cache
 
