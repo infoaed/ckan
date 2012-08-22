@@ -310,4 +310,5 @@ HIERARCHY_CTE =  """
     SELECT G.* FROM subtree AS ST
     INNER JOIN public.group G ON G.id = ST.table_id
     WHERE group_id = :id AND G.type = :type and table_name='group' and G.state='active'
+    ORDER BY G.name
 """
