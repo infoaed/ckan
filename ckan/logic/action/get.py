@@ -550,7 +550,13 @@ def group_show(context, data_dict):
         schema = group_plugin.db_to_form_schema()
 
     if schema:
-        package_dict, errors = validate(group_dict, schema, context=context)
+        # Workaround for display_name not being in the schema 
+        display_name = group_dict.get('display_name')
+        
+        group_dict, errors = validate(group_dict, schema, context=context)
+
+        # Workaround part 2
+        group_dict['display_name'] = display_name
 
     return group_dict
 
