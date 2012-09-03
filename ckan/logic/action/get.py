@@ -788,6 +788,11 @@ def user_autocomplete(context, data_dict):
     return user_list
 
 def package_search(context, data_dict):
+    '''Performs a package search.
+
+    If there is a SOLR error then this raises search.SearchQueryError or
+    search.SearchError
+    '''
     model = context['model']
     session = context['session']
     user = context['user']
@@ -806,7 +811,6 @@ def package_search(context, data_dict):
     if not abort:
         # return a list of package ids
         data_dict['fl'] = 'id data_dict'
-
 
         # If this query hasn't come from a controller that has set this flag
         # then we should remove any mention of capacity from the fq and

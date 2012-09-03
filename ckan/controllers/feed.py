@@ -29,6 +29,7 @@ from urllib import urlencode
 from ckan import model
 from ckan.lib.base import BaseController, c, request, response, json, abort, g
 from ckan.lib.helpers import date_str_to_datetime, url_for
+import ckan.lib.search as search
 from ckan.logic import get_action, NotFound
 
 # TODO make the item list configurable
@@ -53,7 +54,12 @@ def _package_search(data_dict):
         data_dict['rows'] = ITEMS_LIMIT
 
     # package_search action modifies the data_dict, so keep our copy intact.
-    query = get_action('package_search')(context,data_dict.copy())
+    try:
+        query = get_action('package_search')(context,data_dict.copy())
+    except (search.SearchQueryError, search.SearchError), e:
+        log.error('SOLR returned error: %r Was running query: %r',
+                  e.args, data_dict)
+        abort(400, e.__class__.__name__)
 
     return query['count'], query['results']
 
