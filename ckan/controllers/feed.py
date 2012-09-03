@@ -24,13 +24,14 @@ import urlparse
 
 import webhelpers.feedgenerator
 from pylons import config
+from pylons.i18n import _
 from urllib import urlencode
 
 from ckan import model
 from ckan.lib.base import BaseController, c, request, response, json, abort, g
 from ckan.lib.helpers import date_str_to_datetime, url_for
 import ckan.lib.search as search
-from ckan.logic import get_action, NotFound
+from ckan.logic import get_action, NotFound, NotAuthorized
 
 # TODO make the item list configurable
 ITEMS_LIMIT = 20
@@ -174,6 +175,8 @@ class FeedController(BaseController):
             group_dict = get_action('group_show')(context,{'id':id})
         except NotFound:
             abort(404,'Group not found')
+        except NotAuthorized:
+            abort(401, _('Not authorized to see this page'))
 
         data_dict, params = self._parse_url_params()
         data_dict['fq'] = 'groups:"%s"' % id

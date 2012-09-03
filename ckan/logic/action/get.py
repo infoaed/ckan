@@ -523,7 +523,10 @@ def revision_show(context, data_dict):
     return rev_dict
 
 def group_show(context, data_dict):
-    '''Shows group details'''
+    '''Shows group details.
+
+    May raise NotFound or NotAuthorized.
+    '''
     model = context['model']
     id = data_dict['id']
 

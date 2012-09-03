@@ -30,7 +30,10 @@ class TagController(BaseController):
         data_dict = {'all_fields': True}
 
         if c.q:
-            page = int(request.params.get('page', 1))
+            try:
+                page = int(request.params.get('page', 1))
+            except ValueError:
+                abort(404, _('Not found'))
             data_dict['q'] = c.q
             data_dict['limit'] = LIMIT
             data_dict['offset'] = (page-1)*LIMIT
