@@ -425,6 +425,10 @@ class FeedController(BaseController):
         except ValueError:
             abort(400, ('"page" parameter must be an integer'))
 
+        # page=0 or less causes an exception
+        if page < 1:
+            abort(404)
+
         limit = ITEMS_LIMIT
         data_dict = {
             'start': (page-1)*limit,
