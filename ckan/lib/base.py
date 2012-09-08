@@ -206,6 +206,7 @@ class BaseController(WSGIController):
                 # and your cookie has ckan_display_name, we need to force user
                 # to logout and login again to get the User object.
                 c.user = None
+                h.flash_error(literal('DB has been wiped since last logging in: <a href="%s">Log out</a>' % h.get_repoze_handler('logout_handler_path')))
                 self.log.warn('Logout to login')
         else:
             c.userobj = self._get_user_for_apikey()

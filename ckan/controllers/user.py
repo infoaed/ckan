@@ -51,11 +51,6 @@ class UserController(BaseController):
         c.is_sysadmin = Authorizer().is_sysadmin(c.user)
 
     ## end hooks
-
-    def _get_repoze_handler(self, handler_name):
-        '''Returns the URL that repoze.who will respond to and perform a
-        login or logout.'''
-        return getattr(request.environ['repoze.who.plugins']['friendlyform'], handler_name)
         
     def index(self):
         LIMIT = 20
@@ -170,7 +165,7 @@ class UserController(BaseController):
             return self.new(data_dict, errors, error_summary)
         if not c.user:
             # Redirect to a URL picked up by repoze.who which performs the login
-            login_url = self._get_repoze_handler('login_handler_path')
+            login_url = h.get_repoze_handler('login_handler_path')
             h.redirect_to('%s?login=%s&password=%s' % (
                 login_url,
                 str(data_dict['name']),
@@ -264,7 +259,7 @@ class UserController(BaseController):
             g.openid_enabled = False
 
         if not c.user:
-            c.login_handler = h.url_for(self._get_repoze_handler('login_handler_path'))
+            c.login_handler = h.url_for(h.get_repoze_handler('login_handler_path'))
             return render('user/login.html')
         else:
             return render('user/logout_first.html')
@@ -294,7 +289,7 @@ class UserController(BaseController):
         # save our language in the session so we don't lose it
         session['lang'] = request.environ.get('CKAN_LANG')
         session.save()
-        h.redirect_to(self._get_repoze_handler('logout_handler_path'))
+        h.redirect_to(h.get_repoze_handler('logout_handler_path'))
 
     def set_lang(self, lang):
         # this allows us to set the lang in session.  Used for logging

@@ -813,6 +813,10 @@ def convert_to_dict(object_type, objs):
         items.append(item)
     return items
 
+def get_repoze_handler(handler_name):
+    '''Returns the URL that repoze.who will respond to and perform a
+    login or logout.'''
+    return getattr(request.environ['repoze.who.plugins']['friendlyform'], handler_name)
 
 # these are the functions that will end up in `h` template helpers
 # if config option restrict_template_vars is true
