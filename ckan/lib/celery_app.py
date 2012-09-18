@@ -11,19 +11,13 @@ from celery import Celery
 celery = Celery()
 
 config = ConfigParser.ConfigParser()
-
 config_file = os.environ.get('CKAN_CONFIG')
-
 if not config_file:
     config_file =  os.path.join(
         os.path.dirname(os.path.abspath(__file__)), '../../development.ini')
 config.read(config_file)
 
-
 sqlalchemy_url = pylons_config.get('sqlalchemy.url')
-if not sqlalchemy_url:
-    sqlalchemy_url = config.get('app:main', 'sqlalchemy.url')
-
 
 default_config = dict( 
     BROKER_BACKEND = 'sqlalchemy',
@@ -39,7 +33,6 @@ for entry_point in iter_entry_points(group='ckan.celery_task'):
     default_config['CELERY_IMPORTS'].extend(
         entry_point.load()()
     )
-
 
 celery.conf.update(default_config)
 celery.loader.conf.update(default_config)

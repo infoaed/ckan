@@ -153,11 +153,14 @@ def rebuild(package_id=None,only_missing=False,force=False,refresh=False):
             if len(package_ids) == 0:
                 log.debug('All datasets are already indexed')
                 return
+        elif refresh:
+            log.debug('Refreshing the index...')
+            # The index is not previously cleared,
+            # but remove from the index any stray ones
+            # TODO Clear stray ones 
         else:
-            log.debug('Rebuilding the whole index...')
-            # When refreshing, the index is not previously cleared
-            if not refresh:
-                package_index.clear()
+            log.debug('Rebuilding the whole index from scratch...')
+            package_index.clear()
 
         for pkg_id in package_ids:
             try:

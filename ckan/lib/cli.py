@@ -36,7 +36,8 @@ class CkanCommand(paste.script.command.Command):
     default_verbosity = 1
     group_name = 'ckan'
 
-    def _load_config(self):
+    def _load_config(self, load_environment=True):
+        '''Load pylons environment configured with CKAN config file'''
         from paste.deploy import appconfig
         if not self.options.config:
             msg = 'No config file supplied'
@@ -47,16 +48,23 @@ class CkanCommand(paste.script.command.Command):
         fileConfig(self.filename)
         conf = appconfig('config:' + self.filename)
         assert 'ckan' not in dir() # otherwise loggers would be disabled
-        # We have now loaded the config. Now we can import ckan for the
-        # first time.
-        from ckan.config.environment import load_environment
-        load_environment(conf.global_conf, conf.local_conf)
 
-        self.registry=Registry()
-        self.registry.prepare()
-        import pylons
-        self.translator_obj = MockTranslator()
-        self.registry.register(pylons.translator, self.translator_obj)
+        if load_environment:
+            # We have now loaded the config. Now we can import ckan for the
+            # first time.
+            from ckan.config.environment import load_environment
+            load_environment(conf.global_conf, conf.local_conf)
+
+            self.registry=Registry()
+            self.registry.prepare()
+            import pylons
+            self.translator_obj = MockTranslator()
+            self.registry.register(pylons.translator, self.translator_obj)
+        else:
+            # Initialize config with the basic options
+            import pylons
+            pylons.config.init_app(conf.global_conf, conf.local_conf,
+                                   package='ckan', paths=[])
 
     def _setup_app(self):
         cmd = paste.script.appinstall.SetupCommand('setup-app')
@@ -805,6 +813,7 @@ class Celery(CkanCommand):
                 sys.exit(1)
 
     def run_(self):
+        self._load_config(load_environment=False)
         os.environ['CKAN_CONFIG'] = os.path.abspath(self.options.config)
         from ckan.lib.celery_app import celery
         celery_args = ['--%s' % arg for arg in self.args[1:]]
