@@ -60,6 +60,7 @@ def _get_auth_function(action, profile=None):
     # Then overwrite them with any specific ones in the plugins:
     resolved_auth_function_plugins = {}
     fetched_auth_functions = {}
+    plugins_that_were_inserted = set()
     for plugin in PluginImplementations(IAuthFunctions):
         for name, auth_function in plugin.get_auth_functions().items():
             if name in resolved_auth_function_plugins:
@@ -69,9 +70,12 @@ def _get_auth_function(action, profile=None):
                         resolved_auth_function_plugins[name]
                     )
                 )
-            log.debug('Auth function %r was inserted', plugin.name)
+            plugins_that_were_inserted.add(plugin.name)
             resolved_auth_function_plugins[name] = plugin.name
             fetched_auth_functions[name] = auth_function
+    if plugins_that_were_inserted:
+        log.debug('Auth functions inserted: %r',
+                  plugins_that_were_inserted)
     # Use the updated ones in preference to the originals.
     AuthFunctions._functions.update(fetched_auth_functions)
     return AuthFunctions._functions.get(action)
