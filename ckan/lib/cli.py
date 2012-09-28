@@ -798,11 +798,13 @@ class Celery(CkanCommand):
     summary = __doc__.split('\n')[0]
     usage = __doc__
 
-    CkanCommand.parser.add_option('-q', '--queue',
-        action='store',
-        dest='queue',
-        default='bulk',
-        help="Send to a particular queue")
+    def __init__(self, name):
+        super(Celery,self).__init__(name)
+        self.parser.add_option('-q', '--queue',
+                               action='store',
+                               dest='queue',
+                               default='bulk',
+                               help="Send to a particular queue")
 
     def command(self):
         if not self.args:
