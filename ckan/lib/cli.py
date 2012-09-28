@@ -798,6 +798,12 @@ class Celery(CkanCommand):
     summary = __doc__.split('\n')[0]
     usage = __doc__
 
+    CkanCommand.parser.add_option('-q', '--queue',
+        action='store',
+        dest='queue',
+        default='bulk',
+        help="Send to a particular queue")
+
     def command(self):
         if not self.args:
             self.run_()
@@ -829,7 +835,26 @@ class Celery(CkanCommand):
                 break
         else:
             celery_args.append('--loglevel=INFO')
+        if self.options.queue:
+            celery_args.append('--queue=%s' % self.options.queue)
         celery.worker_main(argv=['celeryd'] + celery_args)
+
+    def get_celery_db_session(self):
+        '''
+        Returns an SQLAlchemy session for the db with the Celery
+        broker and results tables.
+        
+        NB Often this is the same db as CKAN, but not always.
+        '''
+        from sqlalchemy import create_engine
+        from sqlalchemy.orm import sessionmaker
+        from pylons import config as pylons_config
+
+        sqlalchemy_url = pylons_config.get('celery.sqlalchemy.url') or \
+                         pylons_config.get('sqlalchemy.url')
+        engine = create_engine(sqlalchemy_url)
+        Session = sessionmaker(bind=engine)()
+        return Session
 
     def view(self, num):
         self._load_config()
@@ -841,7 +866,8 @@ class Celery(CkanCommand):
         from kombu.transport.virtual import Base64
 
         # summary
-        q = model.Session.query(Message)
+        Session = self.get_celery_db_session()
+        q = Session.query(Message)
         q_visible = q.filter_by(visible=True)
         print 'Messages on the queue:'
         print '%i total' % q.count()
@@ -870,23 +896,30 @@ class Celery(CkanCommand):
         self._load_config()
         import ckan.model as model
         import pprint
-        if include_tasks_not_done:
-            domain = 'from kombu_message'
-        else:
-            domain = 'from kombu_message where visible = false'
-        tasks_initially = model.Session.execute('select * %s' % domain).rowcount
-        if not tasks_initially:
-            print 'No tasks to delete'
-            sys.exit(0)
-        query = model.Session.execute('delete %s' % domain)
-        tasks_afterwards = model.Session.execute('select * %s' % domain).rowcount
-        print '%i of %i %stasks deleted' % (tasks_initially - tasks_afterwards,
-                                            tasks_initially,
-                                            ' done' if not include_tasks_not_done else '')
-        if tasks_afterwards:
-            print 'ERROR: Failed to delete all tasks'
-            sys.exit(1)
-        model.repo.commit_and_remove()
+        Session = self.get_celery_db_session()
+        for queue in ('broker', 'status'):
+            if include_tasks_not_done:
+                domain = 'from kombu_message' if queue=='broker' else \
+                         'from celery_taskmeta'
+            else:
+                domain = 'from kombu_message where visible = false' \
+                         if queue=='broker' else \
+                         'from celery_taskmeta where status = "success"'
+            tasks_initially = Session.execute('select * %s' % domain).rowcount
+            if not tasks_initially:
+                print 'No tasks to delete from %s queue' % queue
+                sys.exit(0)
+            query = Session.execute('delete %s' % domain)
+            tasks_afterwards = Session.execute('select * %s' % domain).rowcount
+            print '%i of %i %stasks deleted from %s queue' % \
+                  (tasks_initially - tasks_afterwards,
+                   tasks_initially,
+                   ' done' if not include_tasks_not_done else '',
+                   queue)
+            if tasks_afterwards:
+                print 'ERROR: Failed to delete all tasks from %s queue' % queue
+                sys.exit(1)
+            Session.commit()
 
 class Ratings(CkanCommand):
     '''Manage the ratings stored in the db
