@@ -1,3 +1,5 @@
+from nose.tools import assert_equal
+
 from ckan import model
 from ckan.logic import get_action
 from ckan.lib.create_test_data import CreateTestData
@@ -41,21 +43,30 @@ class TestMemberLogic(object):
         assert 'capacity' in res and res['capacity'] == u'public'
 
     def test_member_list(self):
-        _ = self._add_member( self.pkgs[0].id, 'package', 'public')
-        _ = self._add_member( self.pkgs[1].id, 'package', 'public')
+        _ = self._add_member(self.pkgs[0].id, 'package', 'public')
+        _ = self._add_member(self.pkgs[1].id, 'package', 'public')
         ctx, dd = self._build_context('','package')
         res = get_action('member_list')(ctx,dd)
         assert len(res) == 2, res
+        assert res[0][0] in (self.pkgs[0].id, self.pkgs[1].id), res[0]
+        assert_equal(res[0][1], 'package')
+        assert_equal(res[0][2], 'public')
 
         ctx, dd = self._build_context('','user', 'admin')
         res = get_action('member_list')(ctx,dd)
         assert len(res) == 0, res
 
-        _ = self._add_member( self.username, 'user', 'admin')
+        _ = self._add_member(self.username, 'user', 'admin')
         ctx, dd = self._build_context('','user', 'admin')
         res = get_action('member_list')(ctx,dd)
         assert len(res) == 1, res
 
+        # now try deleting a package to ensure it is not returned
+        rev = model.repo.new_revision()
+        self.pkgs[1].delete()
+        model.Session.commit()
+        res = get_action('member_list')(ctx,dd)
+        assert len(res) == 1, res
 
     def test_member_delete(self):
         _ = self._add_member( self.username, 'user', 'admin')

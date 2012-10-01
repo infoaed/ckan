@@ -212,6 +212,7 @@ class ApiController(base.BaseController):
                                     'message': 'Search error: %r' % e.args }
             return_dict['success'] = False
             return self._finish(409, return_dict, content_type='json')
+        print "RET", return_dict
         return self._finish_ok(return_dict)
 
     def _get_action_from_map(self, action_map, register, subregister):
