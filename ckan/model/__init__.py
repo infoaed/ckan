@@ -278,6 +278,31 @@ class Repository(vdm.sqlalchemy.Repository):
             self.session.delete(revision)
         self.commit_and_remove()
 
+# Fix SQLAlchemy to allow configuring alternative pooling classes
+# e.g. sqlalchemy.poolclass = NullPool
+import sqlalchemy.engine
+def coerce_config(configuration, prefix):
+    from sqlalchemy import util
+    import sqlalchemy.pool
+    options = dict((key[len(prefix):], configuration[key])
+                   for key in configuration
+                   if key.startswith(prefix))
+    for option, type_ in (
+        ('convert_unicode', util.bool_or_str('force')),
+        ('pool_timeout', int),
+        ('echo', util.bool_or_str('debug')),
+        ('echo_pool', util.bool_or_str('debug')),
+        ('pool_recycle', int),
+        ('pool_size', int),
+        ('max_overflow', int),
+        ('pool_threadlocal', bool),
+        ('use_native_unicode', bool),
+    ):
+        util.coerce_kw_type(options, option, type_)
+    if 'poolclass' in options:
+        options['poolclass'] = getattr(sqlalchemy.pool, options['poolclass'])
+    return options
+sqlalchemy.engine._coerce_config = coerce_config
 
 repo = Repository(metadata, Session,
         versioned_objects=[Package, PackageTag, Resource, ResourceGroup, PackageExtra, Member, Group]
