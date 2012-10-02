@@ -468,7 +468,7 @@ class TestAction(WsgiAppCase):
         postparams = '%s=1' % json.dumps({'id':'david'})
         res = self.app.post('/api/action/group_show', params=postparams)
         res_obj = json.loads(res.body)
-        assert res_obj['help'] == 'Shows group details'
+        assert res_obj['help'].startswith('Shows group details')
         assert res_obj['success'] == True
         result = res_obj['result']
         assert result['name'] == 'david'
@@ -485,15 +485,11 @@ class TestAction(WsgiAppCase):
 
         res_obj = json.loads(res.body)
         pprint(res_obj)
-        assert res_obj == {
-            'error': {
+        assert res_obj['error'] == {
                 '__type': 'Not Found Error',
                 'message': 'Not found'
-            },
-            'help': 'Shows group details',
-            'success': False
-        }
-
+            }
+        assert res_obj['success'] == False
 
     def test_16_user_autocomplete(self):
         #Empty query
