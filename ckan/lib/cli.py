@@ -803,10 +803,13 @@ class Celery(CkanCommand):
         self.parser.add_option('-q', '--queue',
                                action='store',
                                dest='queue',
-                               default='bulk',
-                               help="Send to a particular queue")
+                               help="Refer to a particular queue")
 
     def command(self):
+        self._load_config(load_environment=False)
+        self.session = self.get_celery_db_session()
+        self.queues = self.get_queues()
+        
         if not self.args:
             self.run_()
         else:
@@ -828,7 +831,7 @@ class Celery(CkanCommand):
                 sys.exit(1)
 
     def run_(self):
-        self._load_config(load_environment=False)
+        assert self.options.queue, 'Please specifiy a --queue from: %r' % self.queues.keys()
         os.environ['CKAN_CONFIG'] = os.path.abspath(self.options.config)
         from ckan.lib.celery_app import celery
         celery_args = ['--%s' % arg for arg in self.args[1:]]
@@ -858,8 +861,13 @@ class Celery(CkanCommand):
         Session = sessionmaker(bind=engine)()
         return Session
 
+    def get_queues(self):
+        from kombu.transport.sqlalchemy.models import Queue
+        return dict([(queue.name, queue.id) \
+                     for queue in self.session.query(Queue) \
+                     if 'celeryd.pidbox' not in queue.name])
+
     def view(self, num):
-        self._load_config()
         import pprint
         import ckan.model as model
         from ckan.lib.helpers import json
@@ -867,60 +875,70 @@ class Celery(CkanCommand):
         from kombu.serialization import registry
         from kombu.transport.virtual import Base64
 
-        # summary
-        Session = self.get_celery_db_session()
-        q = Session.query(Message)
-        q_visible = q.filter_by(visible=True)
-        print 'Messages on the queue:'
-        print '%i total' % q.count()
-        print '%i not yet processed ("visible")' % q_visible.count()
+        print 'Queues: %s' % self.queues.keys()
+        queues = [self.options.queue] if self.options.queue else self.queues.keys()
+        for queue in queues:
+            print '\nQueue: %s' % queue
 
-        # last messages
-        if num:
-            print '%i newest messages:\n' % num
-        for message in q.order_by(Message.sent_at.desc()).limit(num):
-            if message.visible:
-                print 'Task %i: Not yet processed' % (message.id)
-            else:
-                print 'Task %i: Processed at:%s' % (message.id, message.sent_at.strftime('%Y-%m-%d %H:%M'))
-            payload_dict = json.loads(message.payload)
-            body = payload_dict['body']
-            if body:
-                body = Base64().decode(body)
-            payload = registry.decode(
-                body,
-                content_type=payload_dict['content-type'],
-                content_encoding=payload_dict['content-encoding'])
-            pprint.pprint(payload)
-            print # newline
+            # summary
+            q = self.session.query(Message) \
+                .filter_by(queue_id=self.queues[queue])
+            q_visible = q.filter_by(visible=True)
+            print 'Messages on the queue:'
+            print '%i total' % q.count()
+            print '%i not yet processed ("visible")' % q_visible.count()
+
+            # last messages
+            if num and q.count():
+                print '%i newest messages:\n' % num
+            for message in q.order_by(Message.sent_at.desc()).limit(num):
+                if message.visible:
+                    print 'Task %i: Not yet processed' % (message.id)
+                else:
+                    print 'Task %i: Processed at:%s' % (message.id, message.sent_at.strftime('%Y-%m-%d %H:%M'))
+                payload_dict = json.loads(message.payload)
+                body = payload_dict['body']
+                if body:
+                    body = Base64().decode(body)
+                payload = registry.decode(
+                    body,
+                    content_type=payload_dict['content-type'],
+                    content_encoding=payload_dict['content-encoding'])
+                pprint.pprint(payload)
+                print # newline
 
     def clean(self, include_tasks_not_done=True):
-        self._load_config()
         import ckan.model as model
         import pprint
-        Session = self.get_celery_db_session()
-        for queue in ('broker', 'status'):
+        assert self.options.queue, 'Please specifiy a --queue from: %r' % self.queues.keys()
+        Session = self.session
+        for table in ('broker', 'status'):
+            table_printable = 'table:%s' % table
+            if table == 'broker':
+                table_printable += ' queue:%s' % self.options.queue
             if include_tasks_not_done:
-                domain = 'from kombu_message' if queue=='broker' else \
+                domain = 'from kombu_message where queue_id=%s' \
+                             % self.queues[self.options.queue] \
+                         if table=='broker' else \
                          'from celery_taskmeta'
             else:
-                domain = 'from kombu_message where visible = false' \
-                         if queue=='broker' else \
+                domain = 'from kombu_message where visible=false and queue_id=%s' \
+                           % self.queues[self.options.queue] \
+                         if table=='broker' else \
                          'from celery_taskmeta where status = "success"'
             tasks_initially = Session.execute('select * %s' % domain).rowcount
             if not tasks_initially:
-                print 'No tasks to delete from %s queue' % queue
-                sys.exit(0)
+                print 'No tasks to delete from %s' % table_printable
+                continue
             query = Session.execute('delete %s' % domain)
             tasks_afterwards = Session.execute('select * %s' % domain).rowcount
-            print '%i of %i %stasks deleted from %s queue' % \
+            print '%i of %i %stasks deleted from %s' % \
                   (tasks_initially - tasks_afterwards,
                    tasks_initially,
                    ' done' if not include_tasks_not_done else '',
-                   queue)
+                   table_printable)
             if tasks_afterwards:
-                print 'ERROR: Failed to delete all tasks from %s queue' % queue
-                sys.exit(1)
+                print 'WARNING: Failed to delete all tasks from %s' % table_printable
             Session.commit()
 
 class Ratings(CkanCommand):
