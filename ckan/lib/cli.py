@@ -782,6 +782,49 @@ class DatasetCmd(CkanCommand):
         model.repo.commit_and_remove()
         print '%s purged' % name
 
+class ResourceCmd(CkanCommand):
+    '''Manage resources
+
+    Usage:
+      resource <resource-name/id>          - shows resource properties
+      resource show <resource-name/id>     - shows resource properties
+    '''
+    summary = __doc__.split('\n')[0]
+    usage = __doc__
+    max_args = 3
+    min_args = 0
+
+    def command(self):
+        self._load_config()
+        import ckan.model as model
+
+        if not self.args:
+            print self.usage
+        else:
+            cmd = self.args[0]
+            if cmd == 'delete':
+                self.delete(self.args[1])
+            elif cmd == 'purge':
+                self.purge(self.args[1])
+            elif cmd == 'list':
+                self.list()
+            elif cmd == 'show':
+                self.show(self.args[1])
+            else:
+                self.show(self.args[0])
+
+    def _get_resource(self, resource_ref):
+        import ckan.model as model
+        resource = model.Resource.get(unicode(resource_ref))
+        assert resource, 'Could not find resource matching reference: %r' % resource_ref
+        if isinstance(resource, model.ResourceRevision):
+            return resource.continuity
+        return resource
+
+    def show(self, resource_ref):
+        import pprint
+        resource = self._get_resource(resource_ref)
+        pprint.pprint(resource.as_dict())
 
 class Celery(CkanCommand):
     '''Celery daemon
