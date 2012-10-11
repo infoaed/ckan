@@ -214,16 +214,7 @@ def member_list(context, data_dict=None):
     if capacity:
         q = q.filter(model.Member.capacity == capacity)
 
-    lookup = {}
-    def type_lookup(name):
-        if name in lookup:
-            return lookup[name]
-        if hasattr(model, name.title()):
-            lookup[name] = getattr(model,name.title())
-            return lookup[name]
-        return None
-
-    return [ (m.table_id, type_lookup(m.table_name) ,m.capacity,)
+    return [ (m.table_id, m.table_name, m.capacity)
              for m in q.all() ]
 
 def group_list(context, data_dict):

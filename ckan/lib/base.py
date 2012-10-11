@@ -199,12 +199,13 @@ class BaseController(WSGIController):
         if c.user:
             c.user = c.user.decode('utf8')
             c.userobj = model.User.by_name(c.user)
-            if c.userobj is None:
-                # This occurs when you are logged in, clean db
-                # and then restart i.e. only really for testers. There is no
-                # user object, so even though repoze thinks you are logged in
-                # and your cookie has ckan_display_name, we need to force user
-                # to logout and login again to get the User object.
+            if c.userobj is None and 'repoze.who.plugins' in request.environ \
+                   and 'login' in request.environ['PATH_INFO']:
+                # No user object, but repoze thinks you are logged in.
+                # This occurs when you are logged in, clean the db
+                # and then restart i.e. only really for testers.
+                # We need to get the user to logout before logging in again,
+                # so there is a User object.
                 c.user = None
                 h.flash_error(literal('DB has been wiped since last logging in: <a href="%s">Log out</a>' % h.get_repoze_handler('logout_handler_path')))
                 self.log.warn('Logout to login')

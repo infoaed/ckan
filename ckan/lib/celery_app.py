@@ -17,7 +17,8 @@ if not config_file:
         os.path.dirname(os.path.abspath(__file__)), '../../development.ini')
 config.read(config_file)
 
-sqlalchemy_url = pylons_config.get('sqlalchemy.url')
+sqlalchemy_url = pylons_config.get('celery.sqlalchemy.url') or \
+                 pylons_config.get('sqlalchemy.url')
 
 default_config = dict( 
     BROKER_BACKEND = 'sqlalchemy',

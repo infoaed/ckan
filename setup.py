@@ -64,6 +64,7 @@ setup(
     sysadmin = ckan.lib.cli:Sysadmin
     user = ckan.lib.cli:UserCmd
     dataset = ckan.lib.cli:DatasetCmd
+    resource = ckan.lib.cli:ResourceCmd
     search-index = ckan.lib.cli:SearchIndexCommand
     ratings = ckan.lib.cli:Ratings
     notify = ckan.lib.cli:Notification

@@ -155,3 +155,16 @@ This is seen when running a paster command. The problem is paster is not recogni
 This may occur when you are using psql or ``paster db load``. It means that the database dump was taken from a Postgres database that was spatially enabled (PostGIS installed) and you are loading it into one that is not.
 
 To make your Postgres cluster spatially enabled, see the instructions here: https://github.com/okfn/ckanext-spatial/blob/master/README.rst
+
+``Error - <type 'exceptions.TypeError'>: __init__() got an unexpected keyword argument 'behaviors'``
+====================================================================================================
+
+You have installed a version of python module 'Beaker' that is too recent compared to the version of memcached being used. 
+
+This will show the version::
+
+  pip freeze |grep -i beaker
+
+This is how to install a different version (see the pip-requirements.txt for the correct version)::
+
+  pip install 'beaker==1.6.3'

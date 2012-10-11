@@ -782,6 +782,49 @@ class DatasetCmd(CkanCommand):
         model.repo.commit_and_remove()
         print '%s purged' % name
 
+class ResourceCmd(CkanCommand):
+    '''Manage resources
+
+    Usage:
+      resource <resource-name/id>          - shows resource properties
+      resource show <resource-name/id>     - shows resource properties
+    '''
+    summary = __doc__.split('\n')[0]
+    usage = __doc__
+    max_args = 3
+    min_args = 0
+
+    def command(self):
+        self._load_config()
+        import ckan.model as model
+
+        if not self.args:
+            print self.usage
+        else:
+            cmd = self.args[0]
+            if cmd == 'delete':
+                self.delete(self.args[1])
+            elif cmd == 'purge':
+                self.purge(self.args[1])
+            elif cmd == 'list':
+                self.list()
+            elif cmd == 'show':
+                self.show(self.args[1])
+            else:
+                self.show(self.args[0])
+
+    def _get_resource(self, resource_ref):
+        import ckan.model as model
+        resource = model.Resource.get(unicode(resource_ref))
+        assert resource, 'Could not find resource matching reference: %r' % resource_ref
+        if isinstance(resource, model.ResourceRevision):
+            return resource.continuity
+        return resource
+
+    def show(self, resource_ref):
+        import pprint
+        resource = self._get_resource(resource_ref)
+        pprint.pprint(resource.as_dict())
 
 class Celery(CkanCommand):
     '''Celery daemon
@@ -790,14 +833,26 @@ class Celery(CkanCommand):
         celeryd       - run the celery daemon
         celeryd run   - run the celery daemon
         celeryd run concurrency=1 - run the celery daemon with argument 'concurrency'
-        celeryd view  - view all tasks in the queue
+        celeryd view [num] - view queue stats and the <num> most recent tasks
         celeryd clean - delete all tasks in the queue
+        celeryd clean-done - delete tasks in the queue that have been done
     '''
     min_args = 0
     summary = __doc__.split('\n')[0]
     usage = __doc__
 
+    def __init__(self, name):
+        super(Celery,self).__init__(name)
+        self.parser.add_option('-q', '--queue',
+                               action='store',
+                               dest='queue',
+                               help="Refer to a particular queue")
+
     def command(self):
+        self._load_config(load_environment=False)
+        self.session = self.get_celery_db_session()
+        self.queues = self.get_queues()
+        
         if not self.args:
             self.run_()
         else:
@@ -805,50 +860,129 @@ class Celery(CkanCommand):
             if cmd == 'run':
                 self.run_()
             elif cmd == 'view':
-                self.view()
+                if len(self.args) > 1:
+                    num = int(self.args[1])
+                else:
+                    num = 1
+                self.view(num)
             elif cmd == 'clean':
                 self.clean()
+            elif cmd == 'clean-done':
+                self.clean(include_tasks_not_done=False)
             else:
                 print 'Command %s not recognized' % cmd
                 sys.exit(1)
 
     def run_(self):
-        self._load_config(load_environment=False)
+        assert self.options.queue, 'Please specifiy a --queue from: %r' % self.queues.keys()
         os.environ['CKAN_CONFIG'] = os.path.abspath(self.options.config)
         from ckan.lib.celery_app import celery
         celery_args = ['--%s' % arg for arg in self.args[1:]]
-        celery.worker_main(argv=['celeryd', '--loglevel=INFO'] + celery_args)
+        for arg in self.args:
+            if arg.startswith('loglevel'):
+                break
+        else:
+            celery_args.append('--loglevel=INFO')
+        if self.options.queue:
+            celery_args.append('--queue=%s' % self.options.queue)
+        celery.worker_main(argv=['celeryd'] + celery_args)
 
-    def view(self):
-        self._load_config()
+    def get_celery_db_session(self):
+        '''
+        Returns an SQLAlchemy session for the db with the Celery
+        broker and results tables.
+        
+        NB Often this is the same db as CKAN, but not always.
+        '''
+        from sqlalchemy import create_engine
+        from sqlalchemy.orm import sessionmaker
+        from pylons import config as pylons_config
+
+        sqlalchemy_url = pylons_config.get('celery.sqlalchemy.url') or \
+                         pylons_config.get('sqlalchemy.url')
+        engine = create_engine(sqlalchemy_url)
+        Session = sessionmaker(bind=engine)()
+        return Session
+
+    def get_queues(self):
+        from kombu.transport.sqlalchemy.models import Queue
+        return dict([(queue.name, queue.id) \
+                     for queue in self.session.query(Queue) \
+                     if 'celeryd.pidbox' not in queue.name])
+
+    def view(self, num):
+        import pprint
         import ckan.model as model
+        from ckan.lib.helpers import json
         from kombu.transport.sqlalchemy.models import Message
-        q = model.Session.query(Message)
-        q_visible = q.filter_by(visible=True)
-        print '%i messages (total)' % q.count()
-        print '%i visible messages' % q_visible.count()
-        for message in q:
-            if message.visible:
-                print '%i: Visible' % (message.id)
-            else:
-                print '%i: Invisible Sent:%s' % (message.id, message.sent_at)
+        from kombu.serialization import registry
+        from kombu.transport.virtual import Base64
 
-    def clean(self):
-        self._load_config()
+        print 'Queues: %s' % self.queues.keys()
+        queues = [self.options.queue] if self.options.queue else self.queues.keys()
+        for queue in queues:
+            print '\nQueue: %s' % queue
+
+            # summary
+            q = self.session.query(Message) \
+                .filter_by(queue_id=self.queues[queue])
+            q_visible = q.filter_by(visible=True)
+            print 'Messages on the queue:'
+            print '%i total' % q.count()
+            print '%i not yet processed ("visible")' % q_visible.count()
+
+            # last messages
+            if num and q.count():
+                print '%i newest messages:\n' % num
+            for message in q.order_by(Message.sent_at.desc()).limit(num):
+                if message.visible:
+                    print 'Task %i: Not yet processed' % (message.id)
+                else:
+                    print 'Task %i: Processed at:%s' % (message.id, message.sent_at.strftime('%Y-%m-%d %H:%M'))
+                payload_dict = json.loads(message.payload)
+                body = payload_dict['body']
+                if body:
+                    body = Base64().decode(body)
+                payload = registry.decode(
+                    body,
+                    content_type=payload_dict['content-type'],
+                    content_encoding=payload_dict['content-encoding'])
+                pprint.pprint(payload)
+                print # newline
+
+    def clean(self, include_tasks_not_done=True):
         import ckan.model as model
         import pprint
-        tasks_initially = model.Session.execute("select * from kombu_message").rowcount
-        if not tasks_initially:
-            print 'No tasks to delete'
-            sys.exit(0)
-        query = model.Session.execute("delete from kombu_message")
-        tasks_afterwards = model.Session.execute("select * from kombu_message").rowcount
-        print '%i of %i tasks deleted' % (tasks_initially - tasks_afterwards,
-                                          tasks_initially)
-        if tasks_afterwards:
-            print 'ERROR: Failed to delete all tasks'
-            sys.exit(1)
-        model.repo.commit_and_remove()
+        assert self.options.queue, 'Please specifiy a --queue from: %r' % self.queues.keys()
+        Session = self.session
+        for table in ('broker', 'status'):
+            table_printable = 'table:%s' % table
+            if table == 'broker':
+                table_printable += ' queue:%s' % self.options.queue
+            if include_tasks_not_done:
+                domain = 'from kombu_message where queue_id=%s' \
+                             % self.queues[self.options.queue] \
+                         if table=='broker' else \
+                         'from celery_taskmeta'
+            else:
+                domain = 'from kombu_message where visible=false and queue_id=%s' \
+                           % self.queues[self.options.queue] \
+                         if table=='broker' else \
+                         'from celery_taskmeta where status = "success"'
+            tasks_initially = Session.execute('select * %s' % domain).rowcount
+            if not tasks_initially:
+                print 'No tasks to delete from %s' % table_printable
+                continue
+            query = Session.execute('delete %s' % domain)
+            tasks_afterwards = Session.execute('select * %s' % domain).rowcount
+            print '%i of %i %stasks deleted from %s' % \
+                  (tasks_initially - tasks_afterwards,
+                   tasks_initially,
+                   ' done' if not include_tasks_not_done else '',
+                   table_printable)
+            if tasks_afterwards:
+                print 'WARNING: Failed to delete all tasks from %s' % table_printable
+            Session.commit()
 
 class Ratings(CkanCommand):
     '''Manage the ratings stored in the db
