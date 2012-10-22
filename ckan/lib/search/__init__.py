@@ -157,7 +157,20 @@ def rebuild(package_id=None,only_missing=False,force=False,refresh=False):
             log.debug('Refreshing the index...')
             # The index is not previously cleared,
             # but remove from the index any stray ones
-            # TODO Clear stray ones 
+            # TODO Clear stray ones
+            pkgs_q = model.Session.query(model.Package).filter_by(state=model.State.ACTIVE)
+            pkgs = set([pkg.id for pkg in pkgs_q])
+            log.debug('%i datasets in the database', len(pkgs))
+            package_query = query_for(model.Package)
+            indexed_pkgs = set(package_query.get_all_entity_ids(max_results=len(pkgs)*2))
+            log.debug('%i datasets in the search index', len(indexed_pkgs))
+            pkgs_indexed_but_object_missing = indexed_pkgs - pkgs
+            log.debug('Found %i datasets in the index which have no equivalent in the database',
+                      len(pkgs_indexed_but_object_missing))
+            if pkgs_indexed_but_object_missing:
+                pkg_names = [package_query.get_index(pkg_id)['name'] \
+                             for pkg_id in pkgs_indexed_but_object_missing[:5]]
+                print 'Datasets just in the index (limit=5): %r' % pkg_names
         else:
             log.debug('Rebuilding the whole index from scratch...')
             package_index.clear()

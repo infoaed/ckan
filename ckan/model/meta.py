@@ -164,3 +164,5 @@ def engine_is_sqlite():
     Returns true iff the engine is connected to a sqlite database.
     """
     return engine.url.drivername == 'sqlite'
+
+
