@@ -288,6 +288,7 @@ class SearchIndexCommand(CkanCommand):
       search-index [-i] [-o] [-r] rebuild [dataset-name]     - reindex dataset-name if given, if not then rebuild full search index (all datasets)
       search-index check                                     - checks for datasets not indexed
       search-index show {dataset-name}                       - shows index of a dataset
+      search-index rebuild-publisher {publisher-name}        - Rebuilds the publisher's datasets index
       search-index clear [dataset-name]                      - clears the search index for the provided dataset or for the whole ckan instance
     '''
 
@@ -320,6 +321,8 @@ class SearchIndexCommand(CkanCommand):
         cmd = self.args[0]
         if cmd == 'rebuild':
             self.rebuild()
+        elif cmd == 'rebuild-publisher':
+            self.rebuild_publisher()
         elif cmd == 'check':
             self.check()
         elif cmd == 'show':
@@ -328,6 +331,32 @@ class SearchIndexCommand(CkanCommand):
             self.clear()
         else:
             print 'Command %s not recognized' % cmd
+
+    def rebuild_publisher(self):
+        from ckan.model import Session, Group, Member, Package
+        from ckan.lib.search import rebuild as rebuild_package
+
+        if len(self.args) <= 1:
+            print 'No publisher name was specified'
+            sys.exit(0)
+
+        publisher = Group.get(self.args[1])
+        if not publisher:
+            print 'Publisher (%s) was not found' % self.args[1]
+            sys.exit(0)
+
+        members = Session.query(Member).filter(Member.group_id==publisher.id).\
+            filter(Member.state=='active').filter(Member.table_name=='package')
+
+        for member in members.all():
+            package = Package.get(member.table_id)
+            if not package:
+                print 'Package (%s) was not found in (%s)' % (member.table_id, member,)
+                continue
+
+            print 'Rebuilding index: %s' % package.name
+            rebuild_package(package.name)
+
 
     def rebuild(self):
         from ckan.lib.search import rebuild
@@ -852,7 +881,7 @@ class Celery(CkanCommand):
         self._load_config(load_environment=False)
         self.session = self.get_celery_db_session()
         self.queues = self.get_queues()
-        
+
         if not self.args:
             self.run_()
         else:
@@ -891,7 +920,7 @@ class Celery(CkanCommand):
         '''
         Returns an SQLAlchemy session for the db with the Celery
         broker and results tables.
-        
+
         NB Often this is the same db as CKAN, but not always.
         '''
         from sqlalchemy import create_engine

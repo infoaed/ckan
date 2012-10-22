@@ -279,7 +279,7 @@ class FeedController(BaseController):
         search_url_params = urlencode(search_params)
 
         try:
-            page = int(request.params.get('page', 1))
+            page = int(request.params.get('page', 1)) or 1
         except ValueError:
             abort(400, ('"page" parameter must be an integer'))
 
@@ -382,7 +382,7 @@ class FeedController(BaseController):
         """
         urls = dict( (rel, None) for rel in 'previous next first last'.split() )
 
-        page = int(query.get('page', 1))
+        page = int(query.get('page', 1)) or 1
 
         # first: remove any page parameter
         first_query = query.copy()
@@ -421,13 +421,9 @@ class FeedController(BaseController):
         """
 
         try:
-            page = int(request.params.get('page', 1))
+            page = int(request.params.get('page', 1)) or 1
         except ValueError:
             abort(400, ('"page" parameter must be an integer'))
-
-        # page=0 or less causes an exception
-        if page < 1:
-            abort(404)
 
         limit = ITEMS_LIMIT
         data_dict = {
