@@ -337,7 +337,7 @@ def _subnav_named_route(text, routename, **kwargs):
 def default_group_type():
     return str( config.get('ckan.default.group_type', 'group') )
 
-def unselected_facet_items(facet, limit=10):
+def unselected_facet_items(facet, limit=10, sort_by='count'):
     '''Return the list of unselected facet items for the given facet, sorted
     by count.
 
@@ -365,7 +365,7 @@ def unselected_facet_items(facet, limit=10):
             continue
         if not (facet, facet_item['name']) in request.params.items():
             facets.append(facet_item)
-    return sorted(facets, key=lambda item: item['count'], reverse=True)[:limit]
+    return sorted(facets, key=lambda item: item[sort_by], reverse=(sort_by=='count'))[:limit]
 
 def facet_items(*args, **kwargs):
     """

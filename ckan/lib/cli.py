@@ -288,7 +288,7 @@ class SearchIndexCommand(CkanCommand):
       search-index [-i] [-o] [-r] rebuild [dataset-name]     - reindex dataset-name if given, if not then rebuild full search index (all datasets)
       search-index check                                     - checks for datasets not indexed
       search-index show {dataset-name}                       - shows index of a dataset
-      search-index rebuild-publisher {publisher-name}        - Rebuilds the publisher's datasets index
+      search-index rebuild-publisher {publisher-name}        - Rebuilds the publisher\'s datasets index
       search-index clear [dataset-name]                      - clears the search index for the provided dataset or for the whole ckan instance
     '''
 
