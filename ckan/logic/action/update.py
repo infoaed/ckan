@@ -494,11 +494,15 @@ def task_status_update(context, data_dict):
         except NotFound:
             pass
         else:
+            pkg = None
             if isinstance(domain_object, model.ResourceRevision):
                 if domain_object.resource_group:
                     if domain_object.resource_group.package:
-                        dome.notify(domain_object.resource_group.package,
-                                    ckan.model.domain_object.DomainObjectOperation.changed)
+                        pkg = domain_object.resource_group.package
+            elif isinstance(domain_object, model.Package):
+                pkg = domain_object
+            if pkg:
+                dome.notify(pkg, ckan.model.domain_object.DomainObjectOperation.changed)
 
     return model_dictize.task_status_dictize(task_status, context)
 
