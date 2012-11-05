@@ -483,27 +483,6 @@ def task_status_update(context, data_dict):
     session.commit()
     session.close()
 
-    # Task status is now used to store more transient info about the package
-    # and so things like search indexing now depend on task status (e.g. 5 stars).
-    # Therefore send out a notification that the domain object has changed.
-    entity_id = data_dict.get('entity_id')
-    if entity_id:
-        dome = model.modification.DomainObjectModificationExtension()
-        try:
-            domain_object = logic.action.get_domain_object(model, entity_id)
-        except NotFound:
-            pass
-        else:
-            pkg = None
-            if isinstance(domain_object, model.ResourceRevision):
-                if domain_object.resource_group:
-                    if domain_object.resource_group.package:
-                        pkg = domain_object.resource_group.package
-            elif isinstance(domain_object, model.Package):
-                pkg = domain_object
-            if pkg:
-                dome.notify(pkg, ckan.model.domain_object.DomainObjectOperation.changed)
-
     return model_dictize.task_status_dictize(task_status, context)
 
 def task_status_update_many(context, data_dict):
