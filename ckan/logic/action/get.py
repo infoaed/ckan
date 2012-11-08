@@ -77,14 +77,18 @@ def current_package_list_with_resources(context, data_dict):
     user = context["user"]
     limit = data_dict.get("limit")
     page = int(data_dict.get('page', 1))
-
+    order_by = data_dict.get('order_by', 'package_revision')
+    if order_by not in set(('name', 'package_revision')):
+        raise logic.ParameterError('"order_by" value %r not implemented.' % order_by)
     _check_access('current_package_list_with_resources', context, data_dict)
 
     query = model.Session.query(model.PackageRevision)
     query = query.filter(model.PackageRevision.state=='active')
     query = query.filter(model.PackageRevision.current==True)
-
-    query = query.order_by(model.package_revision_table.c.revision_timestamp.desc())
+    if order_by == 'name':
+        query = query.order_by(model.package_revision_table.c.name)
+    elif order_by == 'package_revision':
+        query = query.order_by(model.package_revision_table.c.revision_timestamp.desc())
     if limit:
         query = query.limit(int(limit))
         query = query.offset((page-1)*limit)
