@@ -310,7 +310,7 @@ def tag_list(context, data_dict):
     tags whose names match the given query will be returned. Otherwise, all
     tags will be returned.
 
-    By default only free tags (tags that don't belong to a vocabulary) are
+    By default only free tags (tags that don\'t belong to a vocabulary) are
     returned. If a 'vocabulary_id' is provided in the data_dict then tags
     belonging to the given vocabulary (id or name) will be returned instead.
 
