@@ -13,6 +13,7 @@ import ckan.lib.dictization.model_save as model_save
 import ckan.lib.navl.dictization_functions
 import ckan.lib.navl.validators as validators
 import ckan.lib.plugins as lib_plugins
+import ckan.model.domain_object
 
 log = logging.getLogger(__name__)
 
@@ -481,6 +482,7 @@ def task_status_update(context, data_dict):
 
     session.commit()
     session.close()
+
     return model_dictize.task_status_dictize(task_status, context)
 
 def task_status_update_many(context, data_dict):
