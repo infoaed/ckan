@@ -273,8 +273,10 @@ class FeedController(BaseController):
         for (param, value) in request.params.items():
             if param not in ['q', 'page', 'sort'] \
                     and len(value) and not param.startswith('_'):
-                search_params[param] = value
-                fq += ' %s:"%s"' % (param, value)
+                if not param.startswith('ext_'):
+                    fq += ' %s:"%s"' % (param, value)
+                else:
+                    search_params[param] = value
 
         search_url_params = urlencode(search_params)
 
@@ -361,6 +363,7 @@ class FeedController(BaseController):
                         u'application/json'
                         )
                     )
+
         response.content_type = feed.mime_type
         return feed.writeString('utf-8')
 
