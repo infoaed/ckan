@@ -2,7 +2,7 @@ import urllib
 
 import paste.fixture
 
-from ckanclient import CkanClient, CkanApiError
+from ckanclient import CkanClient, CkanApiError, ApiClient
 try:
     from ckanclient import ApiRequest
 except ImportError:
@@ -23,6 +23,7 @@ class WsgiCkanClient(CkanClient):
     def __init__(self, app, **kwargs):
         self.app = app
         super(WsgiCkanClient, self).__init__(**kwargs)
+        ApiClient.open_url = self.open_url
 
     def open_url(self, location, data=None, headers={}, method=None):
         if self.is_verbose:
@@ -90,5 +91,3 @@ class WsgiCkanClient(CkanClient):
                 self._print('ckanclient: last message %s' % self.last_message)
         if self.last_status not in (200, 201):
             raise CkanApiError(self.last_message)
-
-        

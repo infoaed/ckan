@@ -38,7 +38,7 @@ def is_available():
     """
     try:
         conn = make_connection()
-        conn.query("*:*", rows=1)
+        conn.query("*:*", rows=0)
     except Exception, e:
         log.exception(e)
         return False
