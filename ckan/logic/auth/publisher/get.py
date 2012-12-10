@@ -110,6 +110,12 @@ def resource_show(context, data_dict):
     package = resource.resource_group.package
 
     if package.state == 'deleted':
+        if Authorizer().is_sysadmin(unicode(user)):
+            return {'success': True}
+        ignore_auth = context.get('ignore_auth',False)
+        if ignore_auth:
+            return {'success': True}
+
         userobj = model.User.get( user )
         if not userobj:
             return {'success': False, 'msg': _('User %s not authorized to read resource %s') % (str(user),package.id)}
