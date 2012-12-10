@@ -234,7 +234,7 @@ class PackageSearchQuery(SearchQuery):
             'fq': 'site_id:"%s"' % config.get('ckan.site_id')}
 
         conn = make_connection()
-        log.debug('Package query: %r' % query)
+        log.info('Package query: %r', query)
         try:
             solr_response = conn.raw_query(**query)
         except SolrException, e:
@@ -246,6 +246,7 @@ class PackageSearchQuery(SearchQuery):
             if data['response']['numFound'] == 0:
              raise SearchError('Dataset not found in the search index: %s' % reference)
             else:
+                #log.debug('Get Index query returned: %r', data['response']['docs'][0])
                 return data['response']['docs'][0]
         except Exception, e:
             log.exception(e)
@@ -324,6 +325,7 @@ class PackageSearchQuery(SearchQuery):
         except SolrException, e:
             raise SearchError('SOLR returned an error running query: %r Error: %r' %
                               (query, e.reason))
+        #log.debug('Package query returned: %r', solr_response)
         try:
             data = json.loads(solr_response)
             response = data['response']

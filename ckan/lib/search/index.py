@@ -214,7 +214,7 @@ class PackageSearchIndex(SearchIndex):
         finally:
             conn.close()
 
-        log.debug("Updated index for %s" % pkg_dict.get('name'))
+        log.debug("Updated index for %s", pkg_dict.get('name'))
 
     def delete_package(self, pkg_dict):
         conn = make_connection()
