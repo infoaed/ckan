@@ -174,6 +174,12 @@ class PackageSearchApiTestCase(ApiTestCase, ControllerTestCase):
         res = self.app.get(offset, status=400) # feature dropped in #1360
         assert "'filter_by_downloadable'" in res.body, res.body
 
+    def test_13_jsonp_callback(self):
+        offset = self.base_url + '?q=%s' % self.package_fixture_data['name']
+        res_without_callback = self.app.get(offset, status=200)
+        offset += '&callback=jsonpcallback'
+        res = self.app.get(offset, status=200)
+        assert_equal(res.body, 'jsonpcallback(%s);' % res_without_callback.body)
 
 class LegacyOptionsTestCase(ApiTestCase, ControllerTestCase):
     '''Here are tests with URIs in the syntax they were in

@@ -430,10 +430,16 @@ class ApiController(base.BaseController):
     def search(self, ver=None, register=None):
 
         log.debug('search %s params: %r' % (register, request.params))
+
+        # remove jsonp callback from search params
+        params = MultiDict(request.params)
+        if 'callback' in params:
+            del params['callback']
+
         if register == 'revision':
             since_time = None
-            if request.params.has_key('since_id'):
-                id = request.params['since_id']
+            if params.has_key('since_id'):
+                id = params['since_id']
                 if not id:
                     return self._finish_bad_request(
                         gettext(u'No revision specified'))
@@ -442,8 +448,8 @@ class ApiController(base.BaseController):
                     return self._finish_not_found(
                         gettext(u'There is no revision with id: %s') % id)
                 since_time = rev.timestamp
-            elif request.params.has_key('since_time'):
-                since_time_str = request.params['since_time']
+            elif params.has_key('since_time'):
+                since_time_str = params['since_time']
                 try:
                     since_time = h.date_str_to_datetime(since_time_str)
                 except ValueError, inst:
@@ -455,7 +461,7 @@ class ApiController(base.BaseController):
             return self._finish_ok([rev.id for rev in revs])
         elif register in ['dataset', 'package', 'resource']:
             try:
-                params = MultiDict(self._get_search_params(request.params))
+                params = MultiDict(self._get_search_params(params))
             except ValueError, e:
                 return self._finish_bad_request(
                     gettext('Could not read parameters: %r' % e))
@@ -524,7 +530,7 @@ class ApiController(base.BaseController):
             params = h.json.loads(request_params.keys()[0], encoding='utf8')
         else:
             params = request_params
-        if not isinstance(params, (UnicodeMultiDict, dict)):
+        if not isinstance(params, (UnicodeMultiDict, MultiDict, dict)):
             raise ValueError, _('Request params must be in form of a json encoded dictionary.')
         return params
 
