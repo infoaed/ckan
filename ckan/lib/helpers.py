@@ -472,7 +472,8 @@ def icon_url(name):
 def icon_html(url, alt=None, inline=True):
     classes = ''
     if inline: classes += 'inline-icon '
-    return literal('<img src="%s" height="16px" width="16px" alt="%s" class="%s" /> ' % (url, alt, classes))
+    alt = alt or ''
+    return literal('<img src="%s" height="16px" width="16px" alt="%s" title="%s" class="%s" /> ' % (url, alt, alt, classes))
 
 def icon(name, alt=None, inline=True):
     return icon_html(icon_url(name),alt,inline)
@@ -625,7 +626,7 @@ def parse_rfc_2822_date(date_str, assume_utc=True):
 
     RFC 2822 is the date format used in HTTP headers.  It should contain timezone
     information, but that cannot be relied upon.
-    
+
     If date_str doesn't contain timezone information, then the 'assume_utc' flag
     determines whether we assume this string is local (with respect to the
     server running this code), or UTC.  In practice, what this means is that if
@@ -634,7 +635,7 @@ def parse_rfc_2822_date(date_str, assume_utc=True):
 
     If timezone information is available in date_str, then the returned datetime
     is 'aware', ie - it has an associated tz_info object.
-    
+
     Returns None if the string cannot be parsed as a valid datetime.
     """
     time_tuple = email.utils.parsedate_tz(date_str)
