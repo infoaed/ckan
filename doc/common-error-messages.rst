@@ -168,3 +168,14 @@ This will show the version::
 This is how to install a different version (see the pip-requirements.txt for the correct version)::
 
   pip install 'beaker==1.6.3'
+
+``cannot import name urandom``
+==============================
+
+This occurs when importing Python module 'random' where a Python Virtual Environment has a different Python version to the main install. This occurs for example when Python is upgraded by your OS for a bugfix update.
+
+To solve it, regenerate the virtual environment:
+
+  virtualenv pyenv
+
+where ``pyenv`` is the path to your virtual environment.
