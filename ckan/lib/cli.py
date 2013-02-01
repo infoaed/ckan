@@ -807,6 +807,15 @@ class GroupCmd(CkanCommand):
         group = model.Group.by_name(groupname)
         if not group:
             print "Cannot find the group '{g}'".format(g=groupname)
+            return
+
+        members = model.Session.query(model.Member).filter(model.Member.group_id==group.id).\
+            filter(model.Member.state=='active').filter(model.Member.table_name=='package')
+        if members.count() > 0:
+            model.repo.new_revision()
+            for m in members.all():
+                m.delete()
+            model.repo.commit_and_remove()
 
         plugins.load('synchronous_search')
         rev = model.repo.new_revision()
@@ -1117,7 +1126,6 @@ class DatasetCmd(CkanCommand):
         model.repo.commit_and_remove()
 
 
-
     def remove_from_group(self, datasetname, groupname):
         import ckan.model as model
         print "Removing {d} from {g}".format(d=datasetname, g=groupname)
@@ -1146,7 +1154,6 @@ class DatasetCmd(CkanCommand):
             model.repo.commit_and_remove()
 
 
-
     def list(self):
         import ckan.model as model
         print 'Datasets:'
@@ -1160,7 +1167,9 @@ class DatasetCmd(CkanCommand):
     def _get_dataset(self, dataset_ref):
         import ckan.model as model
         dataset = model.Package.get(unicode(dataset_ref))
-        assert dataset, 'Could not find dataset matching reference: %r' % dataset_ref
+        if not dataset:
+            print 'Could not find dataset matching reference: %r' % dataset_ref
+            sys.exit(1)
         return dataset
 
     def show(self, dataset_ref):
