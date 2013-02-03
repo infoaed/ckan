@@ -71,10 +71,10 @@ class Package(vdm.sqlalchemy.RevisionedObjectMixin,
     @classmethod
     def get(cls, reference):
         '''Returns a package object referenced by its id or name.'''
-        query = Session.query(cls).filter(cls.id==reference)
-        pkg = query.first()
+        pkg = cls.by_name(reference)
         if pkg == None:
-            pkg = cls.by_name(reference)
+            query = Session.query(cls).filter(cls.id==reference)
+            pkg = query.first()
         return pkg
     # Todo: Make sure package names can't be changed to look like package IDs?
 

@@ -185,8 +185,9 @@ def load_environment(global_conf, app_conf):
     warnings.filterwarnings('ignore', "^Did not recognize type 'BIGINT' of column 'size'", sqlalchemy.exc.SAWarning)
     warnings.filterwarnings('ignore', "^Did not recognize type 'tsvector' of column 'search_vector'", sqlalchemy.exc.SAWarning)
 
-    ckan_db = os.environ.get('CKAN_DB') 
+    ckan_db = os.environ.get('CKAN_DB')
 
+    from ckan.lib.profiling import before_cursor_execute, after_cursor_execute
     if ckan_db:
         config['sqlalchemy.url'] = ckan_db
     engine = sqlalchemy.engine_from_config(config, 'sqlalchemy.')
