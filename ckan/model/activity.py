@@ -8,7 +8,7 @@ from types import JsonDictType
 from core import *
 from package import *
 
-__all__ = ['Activity', 'activity_table', 
+__all__ = ['Activity', 'activity_table',
            'ActivityDetail', 'activity_detail_table',
            ]
 

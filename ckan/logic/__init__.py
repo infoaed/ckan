@@ -148,7 +148,7 @@ def check_access(action, context, data_dict=None):
     user = context.get('user')
 
     log.debug('check access - user %r, action %s' % (user,action))
-       
+
     if action:
         #if action != model.Action.READ and user in (model.PSEUDO_USER__VISITOR, ''):
         #    # TODO Check the API key is valid at some point too!
@@ -161,7 +161,7 @@ def check_access(action, context, data_dict=None):
     elif not user:
         msg = _('No valid API key provided.')
         log.debug(msg)
-        raise NotAuthorized(msg)       
+        raise NotAuthorized(msg)
 
     log.debug('Access OK.')
     return True
@@ -189,7 +189,7 @@ def check_access_old(entity, action, context):
         #raise NotAuthorized
 
     log.debug('Access OK.')
-    return True             
+    return True
 
 _actions = {}
 
@@ -221,6 +221,7 @@ def get_action(action):
     resolved_action_plugins = {}
     fetched_actions = {}
     for plugin in PluginImplementations(IActions):
+        count = 0
         for name, auth_function in plugin.get_actions().items():
             if name in resolved_action_plugins:
                 raise Exception(
@@ -229,9 +230,10 @@ def get_action(action):
                         resolved_action_plugins[name]
                     )
                 )
-            log.debug('Auth function %r was inserted', plugin.name)
+            count = count + 1
             resolved_action_plugins[name] = plugin.name
             fetched_actions[name] = auth_function
+        log.debug('%d auth functions were inserted from %r' % (count,plugin.name))
     # Use the updated ones in preference to the originals.
     _actions.update(fetched_actions)
     return _actions.get(action)
