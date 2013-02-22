@@ -165,6 +165,7 @@ class User(DomainObject):
         import ckan.model as model
 
         q = model.Session.query(model.Group)\
+               .filter(model.Group.state == 'active')\
             .join(model.Member, model.Member.group_id == model.Group.id and \
                        model.Member.table_name == 'user' ).\
                join(model.User, model.User.id == model.Member.table_id).\

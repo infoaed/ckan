@@ -194,6 +194,14 @@ class Group(vdm.sqlalchemy.RevisionedObjectMixin,
         return query
 
     @classmethod
+    def by_title(cls, title, group_type=None):
+        q = Session.query(cls) \
+            .filter_by(title=title)
+        if group_type:
+            q = q.filter(cls.type==group_type)
+        return q.first()
+
+    @classmethod
     def search_by_name_or_title(cls, text_query, group_type=None):
         text_query = text_query.strip().lower()
         q = Session.query(cls) \
