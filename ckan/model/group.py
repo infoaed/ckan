@@ -201,6 +201,7 @@ class Group(vdm.sqlalchemy.RevisionedObjectMixin,
                            cls.title.ilike('%' + text_query + '%')))
         if group_type:
             q = q.filter(cls.type==group_type)
+        q = q.filter(cls.state=='active')
         return q.order_by(cls.title)
 
     @classmethod
