@@ -22,4 +22,5 @@ def after_cursor_execute(conn, cursor, statement,
     path = request.path if hasattr(request, "path") else "NOPATH"
 
     log.debug("Query Complete on %s!" % path)
+    log.debug("Parameters: %s" % parameters)
     log.debug("Total Time: %.02fms" % (total*1000))
