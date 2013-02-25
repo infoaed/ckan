@@ -7,6 +7,7 @@ from hashlib import md5
 import logging
 import os
 import urllib
+import time
 
 from paste.deploy.converters import asbool
 from pylons import c, cache, config, g, request, response, session
@@ -166,6 +167,7 @@ class BaseController(WSGIController):
     log = logging.getLogger(__name__)
 
     def __before__(self, action, **params):
+        self.start_time = time.time()
         c.__version__ = ckan.__version__
         self._identify_user()
         i18n.handle_request(request, c)
@@ -258,6 +260,9 @@ class BaseController(WSGIController):
             # Remove auth_tkt repoze.who cookie if user not logged in.
             elif cookie == 'auth_tkt' and not session.id:
                 response.delete_cookie(cookie)
+
+        self.log.info("Controller (%s) took %s" % (request.path,(time.time()-self.start_time)))
+
 
         return res
 
