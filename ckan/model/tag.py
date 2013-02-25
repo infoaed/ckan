@@ -9,6 +9,7 @@ from core import *
 import vocabulary
 import activity
 import ckan
+from sqlalchemy.orm import defer
 
 __all__ = ['tag_table', 'package_tag_table', 'Tag', 'PackageTag',
            'PackageTagRevision', 'package_tag_revision_table',
@@ -157,7 +158,7 @@ class Tag(DomainObject):
                         % vocab_id_or_name)
             query = Session.query(Tag).filter(Tag.vocabulary_id==vocab.id)
         else:
-            query = Session.query(Tag).filter(Tag.vocabulary_id == None)
+            query = Session.query(Tag).options(defer("vocabulary_id"))
             query = query.distinct().join(PackageTagRevision)
             query = query.filter(sqlalchemy.and_(
                 PackageTagRevision.state == 'active',

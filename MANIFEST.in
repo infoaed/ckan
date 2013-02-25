@@ -7,7 +7,6 @@ recursive-include ckan/templates *
 recursive-include ckan *.ini
 recursive-include ckanext/**/public *
 recursive-include ckanext/**/templates *
-recursive-include ckanext/**/i18n *
 prune .git
 include CHANGELOG.txt
 include ckan/migration/migrate.cfg
