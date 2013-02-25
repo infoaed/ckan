@@ -79,6 +79,7 @@ def render(template_name, extra_vars=None, cache_key=None, cache_type=None,
         globs = extra_vars or {}
         globs.update(pylons_globals())
         globs['actions'] = model.Action
+
         # add the template name to the context to help us know where we are
         # used in depreciating functions etc
         c.__template_name = template_name
@@ -98,6 +99,7 @@ def render(template_name, extra_vars=None, cache_key=None, cache_type=None,
             return literal(stream.render(method="text", encoding=None))
 
         return literal(stream.render(method=method, encoding=None, strip_whitespace=True))
+
 
 
     if 'Pragma' in response.headers:
@@ -262,7 +264,7 @@ class BaseController(WSGIController):
             elif cookie == 'auth_tkt' and not session.id:
                 response.delete_cookie(cookie)
 
-        self.log.info("Controller (%s) took %s" % (request.path,(time.time()-self.start_time)))
+        self.log.info("Controller (%s) took %s\n\n" % (request.path,(time.time()-self.start_time)))
 
 
         return res

@@ -11,7 +11,7 @@ log.setLevel(logging.DEBUG)
 def before_cursor_execute(conn, cursor, statement,
                         parameters, context, executemany):
     context._query_start_time = time.time()
-    log.debug("Start Query: %s" % statement)
+    #log.debug("Start Query: %s" % statement)
 
 @event.listens_for(Engine, "after_cursor_execute")
 def after_cursor_execute(conn, cursor, statement,
@@ -21,6 +21,6 @@ def after_cursor_execute(conn, cursor, statement,
 
     path = request.path if hasattr(request, "path") else "NOPATH"
 
-    log.debug("Query Complete on %s!" % path)
-    log.debug("Parameters: %s" % parameters)
-    log.debug("Total Time: %.02fms" % (total*1000))
+    #log.debug("Query Complete on %s!" % path)
+    #log.debug("Parameters: %s" % parameters)
+    #log.debug("Total Time: %.02fms" % (total*1000))

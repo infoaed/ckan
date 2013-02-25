@@ -558,9 +558,9 @@ def group_show(context, data_dict):
         schema = group_plugin.db_to_form_schema()
 
     if schema:
-        # Workaround for display_name not being in the schema 
+        # Workaround for display_name not being in the schema
         display_name = group_dict.get('display_name')
-        
+
         group_dict, errors = _validate(group_dict, schema, context=context)
 
         # Workaround part 2
@@ -639,7 +639,7 @@ def group_search(context, data_dict):
 
     # TODO: should we check for user authentication first?
     q = model.Session.query(model.Group)
-    
+
     escaped_term = misc.escape_sql_like_special_characters(term.lower(),
                                                            escape='\\')
     q = q.filter(_or_(model.Group.name.contains(escaped_term),
@@ -849,15 +849,24 @@ def package_search(context, data_dict):
     If there is a SOLR error then this raises search.SearchQueryError or
     search.SearchError
     '''
+    import time
+
     model = context['model']
     session = context['session']
     user = context['user']
 
+    print '*' * 80
+    print '*' * 80
+
+    start = time.time()
     _check_access('package_search', context, data_dict)
+    log.info("_check_access('package_search') took %fs" % (time.time() - start))
 
     # check if some extension needs to modify the search params
+    start = time.time()
     for item in plugins.PluginImplementations(plugins.IPackageController):
         data_dict = item.before_search(data_dict)
+    log.info("before_serch from plugins took %fs" % (time.time() - start))
 
     # the extension may have decided that it is not necessary to perform
     # the query
@@ -871,6 +880,7 @@ def package_search(context, data_dict):
         # If this query hasn't come from a controller that has set this flag
         # then we should remove any mention of capacity from the fq and
         # instead set it to only retrieve public datasets
+        start = time.time()
         fq = data_dict.get('fq','')
         if not context.get('ignore_capacity_check',False):
             fq = ' '.join(p for p in fq.split(' ')
@@ -879,7 +889,9 @@ def package_search(context, data_dict):
 
         query = search.query_for(model.Package)
         query.run(data_dict)
+        log.info("running query took %fs" % (time.time() - start))
 
+        start = time.time()
         for package in query.results:
             # get the package object
             package, package_dict = package['id'], package.get('data_dict')
@@ -906,6 +918,7 @@ def package_search(context, data_dict):
                 results.append(package_dict)
             else:
                 results.append(model_dictize.package_dictize(pkg,context))
+        log.info("Getching revisions and dictizing took %fs" % (time.time() - start))
 
         count = query.count
         facets = query.facets
@@ -921,6 +934,7 @@ def package_search(context, data_dict):
     }
 
     # Transform facets into a more useful data structure.
+    start = time.time()
     restructured_facets = {}
     for key, value in search_results['facets'].items():
         restructured_facets[key] = {
@@ -928,23 +942,16 @@ def package_search(context, data_dict):
                 'items': []
                 }
         for key_, value_ in value.items():
-            new_facet_dict = {}
-            new_facet_dict['name'] = key_
-            if key == 'groups':
-                group = model.Group.get(key_)
-                if group:
-                    new_facet_dict['display_name'] = group.display_name
-                else:
-                    new_facet_dict['display_name'] = key_
-            else:
-                new_facet_dict['display_name'] = key_
-            new_facet_dict['count'] = value_
+            new_facet_dict = dict(name=key_, display_name=key_, count=value_)
             restructured_facets[key]['items'].append(new_facet_dict)
+    log.info("Restructuring the facets took %f"  % (time.time() - start))
     search_results['search_facets'] = restructured_facets
 
     # check if some extension needs to modify the search results
+    start = time.time()
     for item in plugins.PluginImplementations(plugins.IPackageController):
         search_results = item.after_search(search_results,data_dict)
+    log.info("after_search from plugins took %fs" % (time.time() - start))
 
     # After extensions have had a chance to modify the facets, sort them by
     # display name.
@@ -952,6 +959,9 @@ def package_search(context, data_dict):
         search_results['search_facets'][facet]['items'] = sorted(
                 search_results['search_facets'][facet]['items'],
                 key=lambda facet: facet['display_name'], reverse=True)
+
+    print '*' * 80
+    print '*' * 80
 
     return search_results
 

@@ -193,6 +193,17 @@ def check_access_old(entity, action, context):
 
 _actions = {}
 
+def wrap_action(fn):
+    import time
+
+    def timed_func(context, data_dict):
+        start = time.time()
+        log.info("Action '%s' about to run" % (fn.__name__) )
+        x = fn(context, data_dict)
+        log.info("Action '%s' took %ss" % (fn.__name__, time.time() - start) )
+        return x
+    return timed_func
+
 def get_action(action):
     if _actions:
         return _actions.get(action)
@@ -210,7 +221,7 @@ def get_action(action):
             if not k.startswith('_'):
                 # Only load functions from the action module.
                 if isinstance(v, types.FunctionType):
-                    _actions[k] = v
+                    _actions[k] = wrap_action(v)
 
                     # Whitelist all actions defined in logic/action/get.py as
                     # being side-effect free.

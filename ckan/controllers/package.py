@@ -103,9 +103,9 @@ class PackageController(BaseController):
 
 
     authorizer = ckan.authz.Authorizer()
-
     def search(self):
         from ckan.lib.search import SearchError
+        import time
 
         package_type = self._guess_package_type()
 
@@ -217,7 +217,10 @@ class PackageController(BaseController):
             c.facets = {}
             c.page = h.Page(collection=[])
 
-        return render( self._search_template(package_type) )
+        start = time.time()
+        x = render( self._search_template(package_type), cache_force=True )
+        log.info("Rendering took %fs" % (time.time()-start))
+        return x
 
     def _content_type_for_format(self, fmt):
         """

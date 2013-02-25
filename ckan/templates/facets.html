@@ -28,7 +28,7 @@ if_empty
 count_label
   A callable which accepts an integer, and returns a string.  This controls
   how a facet-item's count is displayed.
-  
+
 -->
 <py:def function="facet_div(name, title, limit=10, label_function=lambda item: item.display_name, if_empty=None, count_label=lambda c: ' (%d)'%c)">
     <div py:if="if_empty is not None or h.unselected_facet_items(name, limit)" class="facet-box">
@@ -61,7 +61,7 @@ if_empty
 count_label
   A callable which accepts an integer, and returns a string.  This controls
   how a facet-item's count is displayed.
-  
+
 -->
 <py:def function="facet_li(name, limit=5, label_function=lambda item: item.display_name, if_empty=None, count_label=lambda c: ' (%d)'%c)">
 
@@ -108,7 +108,7 @@ if_empty
 count_label
   A callable which accepts an integer, and returns a string.  This controls
   how a facet-item's count is displayed.
-  
+
 -->
 <py:def function="facet_sidebar(code, limit=5, label=lambda n: n, title=h.facet_title, if_empty=None, count_label=lambda c: ' (%d)'%c)">
     <?python
@@ -152,7 +152,7 @@ if_empty
 
 -->
 <py:def function="facet_list_items(code, limit=5, label=lambda n: n, if_empty=None)">
-        
+
     <?python
       import logging
       logging.getLogger('ckan.templates.facets').warning("Deprecated function:ckan/templates/facets.html:facet_list_items()")
@@ -178,7 +178,7 @@ if_empty
             <a href="${c.remove_field(field, value)}">
                 ${h.icon('unfilter')}
             </a>
-        </div>  
+        </div>
     </div>
 </py:def>
 
