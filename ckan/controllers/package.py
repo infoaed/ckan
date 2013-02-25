@@ -458,6 +458,7 @@ class PackageController(BaseController):
         try:
             c.pkg_dict = get_action('package_show')(context, {'id':id})
             context['for_edit'] = True
+
             old_data = get_action('package_show')(context, {'id':id})
             # old data is from the database and data is passed from the
             # user if there is a validation error. Use users data if there.
@@ -577,7 +578,7 @@ class PackageController(BaseController):
 
             self._form_save_redirect(pkg['name'], 'new')
         except NotAuthorized:
-            abort(401, _('Unauthorized to read package %s') % '')
+            abort(401, 'Not authorized to create package')
         except NotFound, e:
             abort(404, _('Dataset not found'))
         except DataError:
@@ -610,7 +611,7 @@ class PackageController(BaseController):
 
             self._form_save_redirect(pkg['name'], 'edit')
         except NotAuthorized:
-            abort(401, _('Unauthorized to read package %s') % id)
+            abort(401, 'Not authorized to save package')
         except NotFound, e:
             abort(404, _('Dataset not found'))
         except DataError:
