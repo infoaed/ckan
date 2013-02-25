@@ -168,6 +168,7 @@ class BaseController(WSGIController):
 
     def __before__(self, action, **params):
         self.start_time = time.time()
+        self.log.info( "%s %s" % (("*" * 40), request.path))
         c.__version__ = ckan.__version__
         self._identify_user()
         i18n.handle_request(request, c)
