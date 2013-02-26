@@ -855,9 +855,6 @@ def package_search(context, data_dict):
     session = context['session']
     user = context['user']
 
-    print '*' * 80
-    print '*' * 80
-
     start = time.time()
     _check_access('package_search', context, data_dict)
     log.info("_check_access('package_search') took %fs" % (time.time() - start))
@@ -959,9 +956,6 @@ def package_search(context, data_dict):
         search_results['search_facets'][facet]['items'] = sorted(
                 search_results['search_facets'][facet]['items'],
                 key=lambda facet: facet['display_name'], reverse=True)
-
-    print '*' * 80
-    print '*' * 80
 
     return search_results
 
