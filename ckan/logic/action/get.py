@@ -559,9 +559,9 @@ def group_show(context, data_dict):
         schema = group_plugin.db_to_form_schema()
 
     if schema:
-        # Workaround for display_name not being in the schema 
+        # Workaround for display_name not being in the schema
         display_name = group_dict.get('display_name')
-        
+
         group_dict, errors = _validate(group_dict, schema, context=context)
 
         # Workaround part 2
@@ -643,7 +643,6 @@ def group_search(context, data_dict):
     exact = asbool(data_dict.get('exact', False))
 
     # TODO: should we check for user authentication first?
-
     q = model.Session.query(model.Group) \
         .filter_by(state='active')
 
@@ -937,19 +936,13 @@ def package_search(context, data_dict):
                 'title': key,
                 'items': []
                 }
+
+        # The publisher facets are fetched in the template for package_search
+        # and so fetching the groups here is unnecessary.
         for key_, value_ in value.items():
-            new_facet_dict = {}
-            new_facet_dict['name'] = key_
-            if key == 'groups':
-                group = model.Group.get(key_)
-                if group:
-                    new_facet_dict['display_name'] = group.display_name
-                else:
-                    new_facet_dict['display_name'] = key_
-            else:
-                new_facet_dict['display_name'] = key_
-            new_facet_dict['count'] = value_
+            new_facet_dict = dict(name=key_, display_name=key_, count=value_)
             restructured_facets[key]['items'].append(new_facet_dict)
+
     search_results['search_facets'] = restructured_facets
 
     # check if some extension needs to modify the search results
