@@ -174,7 +174,7 @@ def load_environment(global_conf, app_conf):
 
     # Create the Genshi TemplateLoader
     config['pylons.app_globals'].genshi_loader = TemplateLoader(
-        template_paths, auto_reload=True, callback=template_loaded)
+        template_paths, auto_reload=config.get('debug', False), callback=template_loaded)
 
     # CONFIGURATION OPTIONS HERE (note: all config options will override
     # any Pylons config options)
@@ -185,7 +185,7 @@ def load_environment(global_conf, app_conf):
     warnings.filterwarnings('ignore', "^Did not recognize type 'BIGINT' of column 'size'", sqlalchemy.exc.SAWarning)
     warnings.filterwarnings('ignore', "^Did not recognize type 'tsvector' of column 'search_vector'", sqlalchemy.exc.SAWarning)
 
-    ckan_db = os.environ.get('CKAN_DB') 
+    ckan_db = os.environ.get('CKAN_DB')
 
     if ckan_db:
         config['sqlalchemy.url'] = ckan_db
