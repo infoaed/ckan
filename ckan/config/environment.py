@@ -81,6 +81,15 @@ class _Helpers(object):
             return self.null_function
 
 
+class LoggingLoader(TemplateLoader):
+     def load(self, filename, relative_to=None, cls=None, encoding=None):
+        #log = logging.getLogger('loader')
+        import time
+        start = time.time()
+        x = super(LoggingLoader,self).load(filename, relative_to,cls,encoding)
+        print "TEMPLATE: {f}, {r} => took {t}".format(f=filename,r=relative_to, t=time.time()-start)
+        return x
+
 def load_environment(global_conf, app_conf):
     """Configure the Pylons environment via the ``pylons.config``
     object
@@ -173,7 +182,7 @@ def load_environment(global_conf, app_conf):
     logging.getLogger("MARKDOWN").setLevel(logging.getLogger().level)
 
     # Create the Genshi TemplateLoader
-    config['pylons.app_globals'].genshi_loader = TemplateLoader(
+    config['pylons.app_globals'].genshi_loader = LoggingLoader(
         template_paths, auto_reload=True, callback=template_loaded)
 
     # CONFIGURATION OPTIONS HERE (note: all config options will override

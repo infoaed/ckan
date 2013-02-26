@@ -70,12 +70,18 @@ def render_text(template_name, extra_vars=None, cache_force=None):
                   method='text',
                   loader_class=NewTextTemplate)
 
+
+
+
 def render(template_name, extra_vars=None, cache_key=None, cache_type=None,
            cache_expire=None, method='xhtml', loader_class=MarkupTemplate,
            cache_force = None):
     ''' Main genshi template rendering function. '''
 
     def render_template():
+        import time
+
+        start = time.time()
         globs = extra_vars or {}
         globs.update(pylons_globals())
         globs['actions'] = model.Action
@@ -98,7 +104,9 @@ def render(template_name, extra_vars=None, cache_key=None, cache_type=None,
         if loader_class == NewTextTemplate:
             return literal(stream.render(method="text", encoding=None))
 
-        return literal(stream.render(method=method, encoding=None, strip_whitespace=True))
+        x = literal(stream.render(method=method, encoding=None, strip_whitespace=True))
+        log.info("RENDER: %s in %fs" % (template_name, (time.time()-start)))
+        return x
 
 
 
