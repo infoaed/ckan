@@ -250,8 +250,11 @@ class PackageController(BaseController):
 
 
     def read(self, id, format='html'):
+        import time
+
         # Check we know the content type, if not then it is likely a revision
         # and therefore we should merge the format onto the end of id
+        start = time.time()
         ctype,extension,loader = self._content_type_for_format(format)
         if not ctype:
             # Reconstitute the ID if we don't know what content type to use
@@ -268,6 +271,7 @@ class PackageController(BaseController):
                    'user': c.user or c.author, 'extras_as_string': True,
                    'for_view': True}
         data_dict = {'id': id}
+        log.info("Content neg took %fs" % (time.time()-start))
 
         # interpret @<revision_id> or @<date> suffix
         split = id.split('@')
@@ -287,6 +291,7 @@ class PackageController(BaseController):
             abort(400, _('Invalid revision format: %r') % 'Too many "@" symbols')
 
         #check if package exists
+        start = time.time()
         try:
             c.pkg_dict = get_action('package_show')(context, data_dict)
             c.pkg = context['package']
@@ -295,6 +300,7 @@ class PackageController(BaseController):
             abort(404, _('Dataset not found'))
         except NotAuthorized:
             abort(401, _('Unauthorized to read package %s') % id)
+        log.info("package_show/dict took %fs" % (time.time()-start))
 
         # used by disqus plugin
         c.current_package_id = c.pkg.id
@@ -307,12 +313,16 @@ class PackageController(BaseController):
         #        ckan.logic.action.get.package_activity_list_html(context,
         #            {'id': c.current_package_id})
 
+        start = time.time()
         PackageSaver().render_package(c.pkg_dict, context)
+        log.info("Package saver took %fs" % (time.time()-start))
 
+        start = time.time()
         template = self._read_template( package_type )
         template = template[:template.index('.')+1] + format
-
-        return render( template, loader_class=loader)
+        x = render( template, loader_class=loader)
+        log.info("Render took %fs" % (time.time()-start))
+        return x
 
 
     def comments(self, id):
