@@ -6,6 +6,7 @@ from pylons import config
 from pylons.i18n import _
 import webhelpers.html
 import sqlalchemy
+from paste.deploy.converters import asbool
 
 import ckan
 import ckan.authz
@@ -605,10 +606,13 @@ def group_package_show(context, data_dict):
     return result
 
 def group_search(context, data_dict):
-    '''Return a list of groups whose names or titles contain a given string.
+    '''Return a list of groups whose title is or contains a given string.
 
     :param query: the string to search for
     :type query: string
+    :param exact: whether an exact match is required, or whether the query
+                  just needs to be contained in the title.
+    :type exact: boolean
     :param limit: the maximum number of groups to return
     :type limit: int
     :param offset: when ``limit`` is given, the offset to start returning groups
@@ -636,14 +640,20 @@ def group_search(context, data_dict):
 
     offset = data_dict.get('offset')
     limit = data_dict.get('limit')
+    exact = asbool(data_dict.get('exact', False))
 
     # TODO: should we check for user authentication first?
-    q = model.Session.query(model.Group)
-    
-    escaped_term = misc.escape_sql_like_special_characters(term.lower(),
+
+    q = model.Session.query(model.Group) \
+        .filter_by(state='active')
+
+    escaped_term = misc.escape_sql_like_special_characters(term,
                                                            escape='\\')
-    q = q.filter(_or_(model.Group.name.contains(escaped_term),
-                      model.Group.title.ilike('%' + escaped_term + '%')))
+
+    if exact:
+        q = q.filter(model.Group.title==escaped_term)
+    else:
+        q = q.filter(model.Group.title.ilike('%' + escaped_term.lower() + '%'))
 
     count = q.count()
     q = q.offset(offset)
