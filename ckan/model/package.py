@@ -455,12 +455,14 @@ class Package(vdm.sqlalchemy.RevisionedObjectMixin,
                     values = [getattr(obj_rev, col) if obj_rev else '' for obj_rev in (from_obj_rev, to_obj_rev)]
                     value_diff = self._differ(*values)
                     if value_diff:
-                        if obj_class.__name__ == 'PackageTag':
-                            display_id = to_obj_rev.tag.name
-                        elif obj_class.__name__ == 'PackageExtra':
-                            display_id = to_obj_rev.key
-                        else:
-                            display_id = related_obj_id[:4]
+                        display_id = ""
+                        if to_obj_rev:
+                            if obj_class.__name__ == 'PackageTag':
+                                display_id = to_obj_rev.tag.name
+                            elif obj_class.__name__ == 'PackageExtra':
+                                display_id = to_obj_rev.key
+                            else:
+                                display_id = related_obj_id[:4]
                         key = '%s-%s-%s' % (obj_class.__name__, display_id, col)
                         results[key] = value_diff
         return results
