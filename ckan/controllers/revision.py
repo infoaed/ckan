@@ -132,7 +132,7 @@ class RevisionController(BaseController):
         c.revision = model.Session.query(model.Revision).get(id)
         if c.revision is None:
             abort(404)
-        
+
         pkgs = model.Session.query(model.PackageRevision).filter_by(revision=c.revision)
         c.packages = [ pkg.continuity for pkg in pkgs ]
         pkgtags = model.Session.query(model.PackageTagRevision).filter_by(revision=c.revision)
@@ -148,7 +148,10 @@ class RevisionController(BaseController):
             request.params.getone('oldid'))
         c.revision_to = model.Session.query(model.Revision).get(
             request.params.getone('diff'))
-        
+
+        if not c.revision_from or not c.revision_to:
+            abort(404)
+
         c.diff_entity = request.params.get('diff_entity')
         if c.diff_entity == 'package':
             c.pkg = model.Package.by_name(id)
@@ -158,7 +161,7 @@ class RevisionController(BaseController):
             diff = c.group.diff(c.revision_to, c.revision_from)
         else:
             abort(400)
-        
+
         c.diff = diff.items()
         c.diff.sort()
         return render('revision/diff.html')
