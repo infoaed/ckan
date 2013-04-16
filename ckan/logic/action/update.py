@@ -352,22 +352,29 @@ def group_update(context, data_dict):
 
     group = model_save.group_dict_save(data, context)
 
+    def delete_existing_parent_membership(gid):
+        current = session.query(model.Member).\
+           filter(model.Member.table_id == gid).\
+           filter(model.Member.table_name == "group").all()
+        if current:
+            log.debug('Parents relationship of group %s deleted: %r', group.name,
+                      [membership.group.name for membership in current])
+        for c in current:
+            session.delete(c)
+
     if parent:
         parent_group = model.Group.get( parent )
         if parent_group and not parent_group in group.get_groups(group.type):
-            # Delete all of this groups memberships
-            current = session.query(model.Member).\
-               filter(model.Member.table_id == group.id).\
-               filter(model.Member.table_name == "group").all()
-            if current:
-                log.debug('Parents of group %s deleted: %r', group.name,
-                          [membership.group.name for membership in current])
-            for c in current:
-                session.delete(c)
+            # Delete all of this groups memberships if we have a new parent
+            delete_existing_parent_membership(group.id)
             member = model.Member(group=parent_group, table_id=group.id, table_name='group')
             session.add(member)
             log.debug('Group %s is made child of group %s',
                       group.name, parent_group.name)
+    else:
+        # No parent, this might be an edit so we should delete the existing memberships
+        # if any exist.
+        delete_existing_parent_membership(group.id)
 
 
     for item in plugins.PluginImplementations(plugins.IGroupController):
