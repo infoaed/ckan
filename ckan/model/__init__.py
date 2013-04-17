@@ -29,6 +29,7 @@ from task_status import *
 from vocabulary import *
 from activity import *
 from related import *
+from data_cache import *
 from term_translation import *
 import ckan.migration
 from ckan.lib.helpers import OrderedDict, datetime_to_date_str
@@ -206,7 +207,7 @@ class Repository(vdm.sqlalchemy.Repository):
             log.info('CKAN database version remains as: %s', version_after)
 
         self.init_const_data()
-        
+
         ##this prints the diffs in a readable format
         ##import pprint
         ##from migrate.versioning.schemadiff import getDiffOfModelAgainstDatabase

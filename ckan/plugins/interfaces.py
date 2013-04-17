@@ -9,6 +9,7 @@ __all__ = [
     'IMapper', 'ISession',
     'IMiddleware',
     'IAuthFunctions',
+    'ICachedReport',
     'IDomainObjectModification', 'IGroupController',
     'IPackageController', 'IPluginObserver',
     'IConfigurable', 'IConfigurer', 'IAuthorizer',
@@ -414,6 +415,29 @@ class ITemplateHelpers(Interface):
         """
         Should return a dict, the keys being the name of the helper
         function and the values being the functions themselves.
+        """
+
+class ICachedReport(Interface):
+    """
+    Allows a plugin to register some functions for generating reports
+    that are too expensive to perform at run-time.
+    """
+
+    def register_reports(self):
+        """
+        This method will be called so that the plugin can register the
+        reports it wants run.  The reports will then be executed on a
+        24 hour schedule and the appropriate tasks called.
+
+        This call should return a dictionary, where the key is a description
+        and the value should be the function to run. This function should
+        take no parameters and return nothing.
+        """
+
+    def list_report_keys(self):
+        """
+        Returns a list of the reports that the plugin can generate by
+        returning each key name as an item in a list.
         """
 
 class IDatasetForm(Interface):
