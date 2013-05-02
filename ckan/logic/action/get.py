@@ -76,7 +76,15 @@ def package_list(context, data_dict):
 def current_package_list_with_resources(context, data_dict):
     model = context["model"]
     user = context["user"]
-    limit = data_dict.get("limit")
+    if 'limit' in data_dict:
+        try:
+            limit = int(data_dict['limit'])
+            if limit < 0:
+                limit = 0
+        except ValueError, e:
+            raise logic.ParameterError("'limit' should be an int")
+    else:
+        limit = None
     page = int(data_dict.get('page', 1))
     order_by = data_dict.get('order_by', 'package_revision')
     if order_by not in set(('name', 'package_revision')):
