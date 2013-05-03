@@ -36,6 +36,9 @@ class DatasetActivitySessionExtension(SessionExtension):
 
     """
     def before_commit(self, session):
+        from pylons import config
+        if config.get('disable-activity-stream', False):
+            return 
 
         session.flush()
 
