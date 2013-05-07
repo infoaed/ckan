@@ -9,6 +9,11 @@ import paste.script
 from paste.registry import Registry
 from paste.script.util.logging_config import fileConfig
 
+try:
+    import cloghandler    
+except ImportError:
+    pass
+
 #NB No CKAN imports are allowed until after the config file is loaded.
 #   i.e. do the imports in methods, after _load_config is called.
 #   Otherwise loggers get disabled.
