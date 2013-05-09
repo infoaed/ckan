@@ -543,7 +543,7 @@ def group_show(context, data_dict):
     '''
     model = context['model']
     id = _get_or_bust(data_dict, 'id')
-
+    api = context.get('api_version')
     group = model.Group.get(id)
     context['group'] = group
 
@@ -574,6 +574,14 @@ def group_show(context, data_dict):
 
         # Workaround part 2
         group_dict['display_name'] = display_name
+
+    if api:
+        # Hide users from API requests unless the user is able to admin/edit the group
+        try:
+            _check_access('group_update',context, data_dict)
+        except Exception, e:
+            # Not authorised to modify the group, no users.
+            del group_dict['users']
 
     return group_dict
 
@@ -752,12 +760,21 @@ def package_show_rest(context, data_dict):
 
 def group_show_rest(context, data_dict):
 
+    api = context.get('api_version')
     _check_access('group_show_rest',context, data_dict)
 
     logic.get_action('group_show')(context, data_dict)
     group = context['group']
 
     group_dict = model_dictize.group_to_api(group, context)
+
+    if api:
+        # Hide users from API requests unless the user is able to admin/edit the group
+        try:
+            _check_access('group_update',context, data_dict)
+        except Exception, e:
+            # Not authorised to modify the group, no users.
+            del group_dict['users']
 
     return group_dict
 
