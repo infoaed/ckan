@@ -135,7 +135,8 @@ def group_show(context, data_dict):
     model = context['model']
     user = context.get('user')
     group = get_group_object(context, data_dict)
-    userobj = model.User.get( user )
+    userobj = model.User.get( unicode(user) )
+
     if Authorizer().is_sysadmin(unicode(user)):
         return {'success': True}
 
