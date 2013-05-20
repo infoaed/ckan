@@ -1249,7 +1249,10 @@ class ResourceCmd(CkanCommand):
     def show(self, resource_ref):
         import pprint
         resource = self._get_resource(resource_ref)
-        pprint.pprint(resource.as_dict())
+        res_dict = resource.as_dict()
+        # package name is very useful to know
+        res_dict['package'] = resource.resource_group.package.name if resource.resource_group else None
+        pprint.pprint(res_dict)
 
 class Celery(CkanCommand):
     '''Celery daemon
