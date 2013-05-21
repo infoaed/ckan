@@ -25,8 +25,16 @@ class WsgiCkanClient(CkanClient):
         super(WsgiCkanClient, self).__init__(**kwargs)
         CkanClient._open_url = self.open_url
 
-    def open_url(self, location, data=None, headers={}, method=None):
+    def open_url(self, location, data=None, headers=None, method=None):
         self.last_location = location
+
+        if headers is None:
+            headers = {}
+        _headers = {
+            'Authorization': self.api_key,
+            'X-CKAN-API-Key': self.api_key
+        }
+        headers.update(_headers)
 
         if data != None:
             data = urllib.urlencode({data: 1})
