@@ -158,7 +158,7 @@ def resource_update(context, data_dict):
     if 'message' in context:
         rev.message = context['message']
     else:
-        rev.message = _(u'REST API: Update object %s') % data.get("name", "")
+        rev.message = _(u'API: Update object %s') % data.get("name", "")
 
     resource = model_save.resource_dict_save(data, context)
     if not context.get('defer_commit'):
@@ -215,7 +215,7 @@ def package_update(context, data_dict):
     if 'message' in context:
         rev.message = context['message']
     else:
-        rev.message = _(u'REST API: Update object %s') % data.get("name")
+        rev.message = _(u'API: Update object %s') % data.get("name")
 
     pkg = model_save.package_dict_save(data, context)
 
@@ -269,7 +269,7 @@ def _update_package_relationship(relationship, comment, context):
     if is_changed:
         rev = model.repo.new_revision()
         rev.author = context["user"]
-        rev.message = (_(u'REST API: Update package relationship: %s %s %s') %
+        rev.message = (_(u'API: Update package relationship: %s %s %s') %
             (relationship.subject, relationship.type, relationship.object))
         relationship.comment = comment
         if not context.get('defer_commit'):
@@ -348,7 +348,7 @@ def group_update(context, data_dict):
     if 'message' in context:
         rev.message = context['message']
     else:
-        rev.message = _(u'REST API: Update object %s') % data.get("name")
+        rev.message = _(u'API: Update object %s') % data.get("name")
 
     group = model_save.group_dict_save(data, context)
 

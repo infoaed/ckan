@@ -69,7 +69,7 @@ def package_create(context, data_dict):
     if 'message' in context:
         rev.message = context['message']
     else:
-        rev.message = _(u'REST API: Create object %s') % data.get("name")
+        rev.message = _(u'API: Create object %s') % data.get("name")
 
     pkg = model_save.package_dict_save(data, context)
     admins = []
@@ -181,7 +181,7 @@ def package_relationship_create(context, data_dict):
                                             comment, context)
     rev = model.repo.new_revision()
     rev.author = user
-    rev.message = _(u'REST API: Create package relationship: %s %s %s') % (pkg1, rel_type, pkg2)
+    rev.message = _(u'API: Create package relationship: %s %s %s') % (pkg1, rel_type, pkg2)
     rel = pkg1.add_relationship(rel_type, pkg2, comment=comment)
     if not context.get('defer_commit'):
         model.repo.commit_and_remove()
@@ -215,7 +215,7 @@ def member_create(context, data_dict=None):
     if 'message' in context:
         rev.message = context['message']
     else:
-        rev.message = _(u'REST API: Create member object %s') % data_dict.get("name", "")
+        rev.message = _(u'API: Create member object %s') % data_dict.get("name", "")
 
     group_id = _get_or_bust(data_dict, 'id')
     group = model.Group.get(group_id)
@@ -277,7 +277,7 @@ def group_create(context, data_dict):
     if 'message' in context:
         rev.message = context['message']
     else:
-        rev.message = _(u'REST API: Create object %s') % data.get("name")
+        rev.message = _(u'API: Create object %s') % data.get("name")
 
     group = model_save.group_dict_save(data, context)
 
