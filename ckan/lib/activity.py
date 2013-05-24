@@ -1,5 +1,9 @@
-from sqlalchemy.orm.session import SessionExtension
 import logging
+
+from sqlalchemy.orm.session import SessionExtension
+from pylons import config
+from paste.deploy.converters import asbool
+
 logger = logging.getLogger(__name__)
 
 def activity_stream_item(obj, activity_type, revision, user_id):
@@ -36,9 +40,8 @@ class DatasetActivitySessionExtension(SessionExtension):
 
     """
     def before_commit(self, session):
-        from pylons import config
-        if config.get('disable-activity-stream', False):
-            return 
+        if not asbool(config.get('ckan.activity_stream_enabled', True)):
+            return
 
         session.flush()
 
