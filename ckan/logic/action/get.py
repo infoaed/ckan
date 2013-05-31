@@ -581,7 +581,8 @@ def group_show(context, data_dict):
             _check_access('group_update',context, data_dict)
         except Exception, e:
             # Not authorised to modify the group, no users.
-            del group_dict['users']
+            if 'users' in group_dict:
+                del group_dict['users']
 
     return group_dict
 
