@@ -837,6 +837,15 @@ class GroupCmd(CkanCommand):
 
             group adduser <group-name> <username> <role>
 
+        Changing
+            To change the name (url) to the group you can use the following
+            command to do so.  It will force a re-index of all of the datasets
+            associated with the group.
+
+            You can optionally change the title of the group
+
+            group update <old-group-name> <new-group-name> [title]
+
         Removing
             Removes the named group by setting its state to deleted
 
@@ -880,6 +889,8 @@ class GroupCmd(CkanCommand):
                 self.show()
             elif cmd == 'purge':
                 self.purge()
+            elif cmd == 'update':
+                self.update()                
 
     def get_group_str(self, group):
         return "title={0}, name={1}, type={2}, state={3}".format(group.title,group.name,
@@ -948,6 +959,51 @@ class GroupCmd(CkanCommand):
             print ', '.join(u.name for u in group.members_of_type(model.User, 'editor').all())
 
         print "Dataset count: {dc}".format(dc=group.members_of_type(model.Package).count())
+
+
+    def update(self):
+        """ Changes the slug for the group """
+        import ckan.model as model
+        import ckan.lib.search as search
+
+        if len(self.args) < 3:
+            print "Please specify the old and new group names with an optional new title"
+            print self.usage
+            return
+
+        title = None
+        if len(self.args) == 4:
+            title = self.args[3]
+
+        oldgroupname = self.args[1]
+        newgroupname = self.args[2]        
+        print "Converting '{0}' to '{1}'".format(oldgroupname, newgroupname)
+
+        existing = model.Group.by_name(newgroupname)
+        if existing:
+            print "'{0}' is already in user, please choose another name".format(newgroupname)
+        
+        group = model.Group.by_name(oldgroupname)
+        if not group:
+            print "Group {g} not found".format(g=oldgroupname)
+            return
+
+        model.repo.new_revision()
+        group.name = newgroupname
+        x = sum( 1 for k in group.extras.keys() if k.startswith('previous-name-') )
+        group.extras['previous-name-%d' % (x+1)] = oldgroupname
+        if title:
+            group.extras['previous-title'] = group.title
+            group.title = title
+        group.save()
+
+        print "Updating search index ...."
+        members = model.Session.query(model.Member).filter(model.Member.group_id==group.id).\
+            filter(model.Member.state=='active').filter(model.Member.table_name=='package')
+        for member in members:
+            search.rebuild(member.table_id)
+
+        self._display_group(group)
 
 
     def show(self):
