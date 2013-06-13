@@ -316,6 +316,10 @@ class GroupController(BaseController):
             context['message'] = data_dict.get('log_message', '')
             data_dict['id'] = id
             group = get_action('group_update')(context, data_dict)
+
+            if id != group['name']:
+                self._force_reindex(group)
+
             h.redirect_to('%s_read' % str(group['type']), id=group['name'])
         except NotAuthorized:
             abort(401, _('Unauthorized to read group %s') % id)
@@ -419,6 +423,16 @@ class GroupController(BaseController):
             feed.content_type = 'application/atom+xml'
             return feed.writeString('utf-8')
         return render( self._history_template(c.group_dict['type']) )
+
+    def _force_reindex(self, grp):
+        ''' When the group name has changed, we need to force a reindex
+        of the datasets within the group, otherwise they will stop
+        appearing on the read page for the group (as they're connected via
+        the group name)'''
+        import ckan.lib.search as search
+        group = model.Group.get(grp['name'])
+        for dataset in group.active_packages().all():
+            search.rebuild(dataset.name)
 
     def _render_edit_form(self, fs):
         # errors arrive in c.error and fs.errors
