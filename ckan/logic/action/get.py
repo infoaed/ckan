@@ -678,6 +678,59 @@ def group_search(context, data_dict):
     return {'count': count,
             'results': [_table_dictize(group, context) for group in groups]}
 
+
+def group_abbreviation_search(context, data_dict):
+    '''Return a list of groups whose abbreviation matches the search term.
+
+    :param query: the string to search for
+    :type query: string
+    :param limit: the maximum number of groups to return
+    :type limit: int
+    :param offset: when ``limit`` is given, the offset to start returning groups
+        from
+    :type offset: int
+
+    :returns: A dictionary with the following keys:
+
+      ``'count'``
+        The number of groups in the result.
+
+      ``'results'``
+        The list of groups whose abbreviation contains the given string,
+        a list of dictionaries.
+
+    :rtype: dictionary
+
+    '''
+    model = context['model']
+
+    query = data_dict.get('query') or data_dict.get('q')
+    if query:
+        query = query.strip()
+    term = query
+
+    if not term:
+        return {'count': 0,
+                'results': []}
+
+    offset = data_dict.get('offset', 0)
+    limit = data_dict.get('limit', 20)
+
+    q = model.Session.query(model.Group).join(model.GroupExtra)\
+        .filter(model.Group.state=='active')
+
+    escaped_term = misc.escape_sql_like_special_characters(term,
+                                                           escape='\\')
+
+    q = q.filter(model.GroupExtra.key=='abbreviation')\
+            .filter(model.GroupExtra.value.ilike(escaped_term))    
+    count = q.count()
+    q = q.offset(offset)
+    q = q.limit(limit)
+    groups, count = q.all(), count
+    return {'count': count,
+            'results': [_table_dictize(group, context) for group in groups]}
+
 def tag_show(context, data_dict):
     '''Shows tag details'''
 

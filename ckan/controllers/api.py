@@ -589,6 +589,7 @@ class ApiController(base.BaseController):
 
     @jsonp.jsonpify
     def group_autocomplete(self):
+
         q = request.params.get('q', '')
         t = request.params.get('type', None)
         limit = request.params.get('limit', 20)
@@ -605,7 +606,18 @@ class ApiController(base.BaseController):
                 out[k] = getattr(user, k)
             return out
         query = query.limit(limit)
-        out = map(convert_to_dict, query.all())
+
+        results = query.all()
+        ids = [g.id for g in results]
+        out = map(convert_to_dict, results)
+
+        # Check abbreviations as well but only direct matches        
+        context = {'model': model}
+        abbr_groups = get_action('group_abbreviation_search')(context,{'query': q, 'limit':limit})
+        for group in abbr_groups['results']:
+            if not group['id'] in ids:
+                out.append(group)
+
         return out
 
 
