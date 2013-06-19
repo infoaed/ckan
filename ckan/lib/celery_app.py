@@ -35,16 +35,17 @@ for entry_point in iter_entry_points(group='ckan.celery_task'):
         entry_point.load()()
     )
 
-celery.conf.update(default_config)
-celery.loader.conf.update(default_config)
-
 try:
     for key, value in config.items('app:celery'):
         if key in LIST_PARAMS:
-            celery.conf[key.upper()] = value.split()
-            celery.loader.conf[key.upper()] = value.split()
-        else:
-            celery.conf[key.upper()] = value
-            celery.loader.conf[key.upper()] = value.split()
+            default_config[key.upper()] = value.split()
+        else: 
+            default_config[key.upper()] = value
 except ConfigParser.NoSectionError:
     pass
+
+# Make sure we only set the config *after* we have had a chance to 
+# modify it, as modifying it in .conf or .loader.conf after the fact 
+# doesn't help/work.
+celery.conf.update(default_config)
+celery.loader.conf.update(default_config)
