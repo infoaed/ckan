@@ -4,7 +4,7 @@ import datetime
 import glob
 import itertools
 
-from pylons import c, request, response
+from pylons import c, request, response, config
 from pylons.i18n import _, gettext
 from paste.util.multidict import MultiDict
 from webob.multidict import UnicodeMultiDict
@@ -461,14 +461,16 @@ class ApiController(base.BaseController):
                     gettext("Missing search term ('since_id=UUID' or 'since_time=TIMESTAMP')"))
 
             response.headers['Content-Type'] = "application/json;charset=utf-8"
-
-            revs = model.Session.query(model.Revision.id).filter(model.Revision.timestamp>since_time)
+            limit_size = int(config.get('ckan.revision-search-api.limit', 500))
+            revs = model.Session.query(model.Revision.id).\
+                filter(model.Revision.timestamp>since_time).\
+                order_by("revision.timestamp").limit(limit_size)
             count = revs.count()
 
             def revision_generator():
                 comma = ','
                 yield "["
-                for i, id in enumerate(revs.yield_per(500)):
+                for i, id in enumerate(revs.yield_per(10)):
                     if i == count - 1:
                         comma = '' # Don't show trailing command on last item
                     yield '"{0}"{1}'.format(id[0], comma)
