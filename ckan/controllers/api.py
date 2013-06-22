@@ -30,6 +30,7 @@ NotFound = logic.NotFound
 ValidationError = logic.ValidationError
 DataError = ckan.lib.navl.dictization_functions.DataError
 
+
 IGNORE_FIELDS = ['q']
 CONTENT_TYPES = {
     'text': 'text/plain;charset=utf-8',
@@ -459,8 +460,23 @@ class ApiController(base.BaseController):
                 return self._finish_bad_request(
                     gettext("Missing search term ('since_id=UUID' or 'since_time=TIMESTAMP')"))
 
+            response.headers['Content-Type'] = "application/json;charset=utf-8"
+
             revs = model.Session.query(model.Revision.id).filter(model.Revision.timestamp>since_time)
-            return self._finish_ok( list(itertools.chain.from_iterable(revs.all())) )
+            count = revs.count()
+
+            def revision_generator():
+                comma = ','
+                yield "["
+                for i, id in enumerate(revs.yield_per(500)):
+                    if i == count - 1:
+                        comma = '' # Don't show trailing command on last item
+                    yield '"{0}"{1}'.format(id[0], comma)
+                    del id 
+                yield "]"
+
+            return revision_generator()
+
         elif register in ['dataset', 'package', 'resource']:
             try:
                 params = MultiDict(self._get_search_params(params))
