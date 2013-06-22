@@ -2,6 +2,7 @@ import logging
 import cgi
 import datetime
 import glob
+import itertools
 
 from pylons import c, request, response
 from pylons.i18n import _, gettext
@@ -127,7 +128,7 @@ class ApiController(base.BaseController):
         return self._finish(400, response_data, 'json')
 
     def _wrap_jsonp(self, callback, response_msg):
-        return '%s(%s);' % (callback, response_msg)
+        return "".join(callback, "(", response_msg, ")")
 
     def _set_response_header(self, name, value):
         try:
@@ -457,8 +458,9 @@ class ApiController(base.BaseController):
             else:
                 return self._finish_bad_request(
                     gettext("Missing search term ('since_id=UUID' or 'since_time=TIMESTAMP')"))
-            revs = model.Session.query(model.Revision).filter(model.Revision.timestamp>since_time)
-            return self._finish_ok([rev.id for rev in revs])
+
+            revs = model.Session.query(model.Revision.id).filter(model.Revision.timestamp>since_time)
+            return self._finish_ok( list(itertools.chain.from_iterable(revs.all())) )
         elif register in ['dataset', 'package', 'resource']:
             try:
                 params = MultiDict(self._get_search_params(params))
