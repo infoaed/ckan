@@ -129,7 +129,7 @@ class ApiController(base.BaseController):
         return self._finish(400, response_data, 'json')
 
     def _wrap_jsonp(self, callback, response_msg):
-        return "".join(callback, "(", response_msg, ")")
+        return "".join([callback, "(", response_msg, ")"])
 
     def _set_response_header(self, name, value):
         try:
