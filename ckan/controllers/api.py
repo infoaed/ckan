@@ -455,7 +455,9 @@ class ApiController(base.BaseController):
                 try:
                     since_time = h.date_str_to_datetime(since_time_str)
                 except ValueError, inst:
-                    return self._finish_bad_request('ValueError: %s' % inst)
+                    return self._finish_bad_request('ValueError parsing date/time: %s' % inst)
+                except OverflowError, inst:
+                    return self._finish_bad_request('OverflowError parsing date/time: %s' % inst)
             else:
                 return self._finish_bad_request(
                     gettext("Missing search term ('since_id=UUID' or 'since_time=TIMESTAMP')"))
