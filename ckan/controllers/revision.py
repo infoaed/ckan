@@ -135,6 +135,8 @@ class RevisionController(BaseController):
 
         pkgs = model.Session.query(model.PackageRevision).filter_by(revision=c.revision)
         c.packages = [ pkg.continuity for pkg in pkgs ]
+        resources = model.Session.query(model.ResourceRevision).filter_by(revision=c.revision)
+        c.resources = [ res.continuity for res in resources ]
         pkgtags = model.Session.query(model.PackageTagRevision).filter_by(revision=c.revision)
         c.pkgtags = [ pkgtag.continuity for pkgtag in pkgtags ]
         grps = model.Session.query(model.GroupRevision).filter_by(revision=c.revision)
@@ -151,6 +153,10 @@ class RevisionController(BaseController):
 
         if not c.revision_from or not c.revision_to:
             abort(404)
+
+        # swap them if they are not chronological
+        if c.revision_to.timestamp < c.revision_from.timestamp:
+            c.revision_to, c.revision_from = (c.revision_from, c.revision_to)
 
         c.diff_entity = request.params.get('diff_entity')
         if c.diff_entity == 'package':

@@ -51,6 +51,15 @@
       </py:for>
     </ul>
 
+    <h4>Resources</h4>
+    <ul>
+      <py:for each="res in c.resources">
+      <li>
+      ${h.link_to('%s resource %i' % (res.resource_group.package.name, res.position), h.url_for(controller='package', action='resource_read', id=res.resource_group.package.name, resource_id=res.id))}
+      </li>
+      </py:for>
+    </ul>
+
     <h4>Datasets' Tags</h4>
     <ul>
       <py:for each="pkgtag in c.pkgtags">
