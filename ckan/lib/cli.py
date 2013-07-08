@@ -11,7 +11,7 @@ from paste.registry import Registry
 from paste.script.util.logging_config import fileConfig
 
 try:
-    import cloghandler    
+    import cloghandler
 except ImportError:
     pass
 
@@ -91,7 +91,7 @@ class CachedReports(CkanCommand):
 
         list - Lists all of the registered reports
 
-        generate - Will generate all of the reports, or if a 
+        generate - Will generate all of the reports, or if a
         comma-separated list is supplied will run only those reports
 
     Example,
@@ -135,7 +135,7 @@ class CachedReports(CkanCommand):
                     report_list = [s.strip() for s in self.args[1].split(',')]
                     self.log.info("Running reports => %s", report_list)
                 self._generate(report_list)
-        
+
     def _list(self):
         import ckan.plugins as p
         for plugin in p.PluginImplementations(p.ICachedReport):
@@ -385,6 +385,9 @@ class SearchIndexCommand(CkanCommand):
     def __init__(self,name):
 
         super(SearchIndexCommand,self).__init__(name)
+
+        from ckan.plugins import unload
+        unload('synchronous_search')
 
         self.parser.add_option('-i', '--force', dest='force',
             action='store_true', default=False, help='Ignore exceptions when rebuilding the index')
@@ -890,7 +893,7 @@ class GroupCmd(CkanCommand):
             elif cmd == 'purge':
                 self.purge()
             elif cmd == 'update':
-                self.update()                
+                self.update()
 
     def get_group_str(self, group):
         return "title={0}, name={1}, type={2}, state={3}".format(group.title,group.name,
@@ -976,13 +979,13 @@ class GroupCmd(CkanCommand):
             title = self.args[3]
 
         oldgroupname = self.args[1]
-        newgroupname = self.args[2]        
+        newgroupname = self.args[2]
         print "Converting '{0}' to '{1}'".format(oldgroupname, newgroupname)
 
         existing = model.Group.by_name(newgroupname)
         if existing:
             print "'{0}' is already in user, please choose another name".format(newgroupname)
-        
+
         group = model.Group.by_name(oldgroupname)
         if not group:
             print "Group {g} not found".format(g=oldgroupname)
