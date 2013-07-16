@@ -187,6 +187,9 @@ def load_environment(global_conf, app_conf):
 
     ckan_db = os.environ.get('CKAN_DB')
 
+    if config.get('enable.sql.profiling', False):
+        from ckan.lib.profiling import before_cursor_execute, after_cursor_execute
+
     if ckan_db:
         config['sqlalchemy.url'] = ckan_db
     engine = sqlalchemy.engine_from_config(config, 'sqlalchemy.')
