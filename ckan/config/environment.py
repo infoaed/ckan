@@ -187,7 +187,7 @@ def load_environment(global_conf, app_conf):
 
     ckan_db = os.environ.get('CKAN_DB')
 
-    if config.get('enable.sql.profiling', False):
+    if asbool(config.get('enable.sql.profiling', 'false')):
         from ckan.lib.profiling import before_cursor_execute, after_cursor_execute
 
     if ckan_db:
