@@ -207,7 +207,7 @@ class PackageSearchIndex(SearchIndex):
         try:
             conn = make_connection()
             conn.add_many([pkg_dict])
-            conn.commit(wait_flush=False, wait_searcher=False)
+            conn.commit(wait_searcher=False)
         except Exception, e:
             log.exception(e)
             raise SearchIndexError(e)
