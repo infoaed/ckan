@@ -67,7 +67,7 @@ class DataCache(DomainObject):
         this function returns None.
         """
         import json
-        from ckan.lib.jsonp import DateTimeJsonDecoder
+        from ckan.lib.json import DateTimeJsonDecoder
 
         val, age = cls.get(objectid, key)
         if not val:
