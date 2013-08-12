@@ -49,7 +49,7 @@ def _package_search(data_dict):
                'user': c.user or c.author}
 
     if 'sort' not in data_dict or not data_dict['sort']:
-        data_dict['sort'] = 'metadata_modified desc'
+        data_dict['sort'] = 'last_major_modification desc' # DGU-only field
 
     if 'rows' not in data_dict or not data_dict['rows']:
         data_dict['rows'] = ITEMS_LIMIT
@@ -351,7 +351,7 @@ class FeedController(BaseController):
                     title = pkg.get('title', ''),
                     link = self.base_url + url_for(controller='package', action='read', id=pkg['id']),
                     description = pkg.get('notes', ''),
-                    updated = date_str_to_datetime(pkg.get('metadata_modified')),
+                    updated = date_str_to_datetime(updated_date(pkg)), # This is a DGU-only hack
                     published = date_str_to_datetime(pkg.get('metadata_created')),
                     unique_id = _create_atom_id(u'/dataset/%s' % pkg['id']),
                     author_name = pkg.get('author', ''),
@@ -506,3 +506,12 @@ class _FixedAtom1Feed(webhelpers.feedgenerator.Atom1Feed):
                 handler.addQuickElement(u'link', u'',
                                         {'rel': page, 'href': self.feed.get(page+'_page')})
 
+def updated_date(package):
+    ''' Return the DGU-specific field last_major_modification instead of
+    metadata_modified
+    '''
+    for extra in package['extras']:
+        if extra['key'] == 'last_major_modification':
+            return extra['value']
+    log.warning('Could not get value for "last_major_modification": %s', package['name'])
+    return package['metadata_modified']
