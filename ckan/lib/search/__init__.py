@@ -26,7 +26,7 @@ def text_traceback():
 
 SIMPLE_SEARCH = config.get('ckan.simple_search', False)
 
-SUPPORTED_SCHEMA_VERSIONS = ['1.4']
+SUPPORTED_SCHEMA_VERSIONS = ['1.4','1.5']
 
 DEFAULT_OPTIONS = {
     'limit': 20,
