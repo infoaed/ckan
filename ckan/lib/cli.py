@@ -840,7 +840,7 @@ class GroupCmd(CkanCommand):
 
             group adduser <group-name> <username> <role>
 
-        Changing
+        Updating
             To change the name (url) to the group you can use the following
             command to do so.  It will force a re-index of all of the datasets
             associated with the group.
