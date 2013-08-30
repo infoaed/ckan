@@ -96,6 +96,7 @@ class PackageSearchIndex(SearchIndex):
         self.index_package(pkg_dict)
 
     def index_package(self, pkg_dict):
+        import solr.core
         if pkg_dict is None:
             return
         pkg_dict['data_dict'] = json.dumps(pkg_dict)
@@ -208,6 +209,9 @@ class PackageSearchIndex(SearchIndex):
             conn = make_connection()
             conn.add_many([pkg_dict])
             conn.commit(wait_searcher=False)
+        except solr.core.SolrException, e:
+            log.error('SOLR exception. Reason: "%s" Body: "%s"', e.reason, e.body)
+            raise SearchIndexError(e)
         except Exception, e:
             log.exception(e)
             raise SearchIndexError(e)

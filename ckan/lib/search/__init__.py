@@ -132,7 +132,7 @@ def rebuild(package_id=None,only_missing=False,force=False,refresh=False):
         the process will carry on.
     '''
     from ckan import model
-    log.debug("Rebuilding search index...")
+    log.info("Rebuilding search index...")
 
     package_index = index_for(model.Package)
 
@@ -145,34 +145,34 @@ def rebuild(package_id=None,only_missing=False,force=False,refresh=False):
     else:
         package_ids = [r[0] for r in model.Session.query(model.Package.id).filter(model.Package.state == 'active').order_by(model.Package.name).all()]
         if only_missing:
-            log.debug('Indexing only missing packages...')
+            log.info('Indexing only missing packages...')
             package_query = query_for(model.Package)
             indexed_pkg_ids = set(package_query.get_all_entity_ids(max_results=len(package_ids)))
             package_ids = set(package_ids) - indexed_pkg_ids     # Packages not indexed
 
             if len(package_ids) == 0:
-                log.debug('All datasets are already indexed')
+                log.info('All datasets are already indexed')
                 return
         elif refresh:
-            log.debug('Refreshing the index...')
+            log.info('Refreshing the index...')
             # The index is not previously cleared,
             # but remove from the index any stray ones
             # TODO Clear stray ones
             pkgs_q = model.Session.query(model.Package).filter_by(state=model.State.ACTIVE)
             pkgs = set([pkg.id for pkg in pkgs_q])
-            log.debug('%i datasets in the database', len(pkgs))
+            log.info('%i datasets in the database', len(pkgs))
             package_query = query_for(model.Package)
             indexed_pkgs = set(package_query.get_all_entity_ids(max_results=len(pkgs)*2))
-            log.debug('%i datasets in the search index', len(indexed_pkgs))
+            log.info('%i datasets in the search index', len(indexed_pkgs))
             pkgs_indexed_but_object_missing = indexed_pkgs - pkgs
-            log.debug('Found %i datasets in the index which have no equivalent in the database',
+            log.info('Found %i datasets in the index which have no equivalent in the database',
                       len(pkgs_indexed_but_object_missing))
             if pkgs_indexed_but_object_missing:
                 pkg_names = [package_query.get_index(pkg_id)['name'] \
-                             for pkg_id in pkgs_indexed_but_object_missing[:5]]
+                             for pkg_id in list(pkgs_indexed_but_object_missing)[:5]]
                 print 'Datasets just in the index (limit=5): %r' % pkg_names
         else:
-            log.debug('Rebuilding the whole index from scratch...')
+            log.info('Rebuilding the whole index from scratch...')
             package_index.clear()
 
         for pkg_id in package_ids:
@@ -192,7 +192,7 @@ def rebuild(package_id=None,only_missing=False,force=False,refresh=False):
                     raise
 
     model.Session.commit()
-    log.debug('Finished rebuilding search index.')
+    log.info('Finished rebuild command.')
 
 def check():
     from ckan import model
