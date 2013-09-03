@@ -251,7 +251,7 @@ class DateType(object):
     @classmethod
     def db_to_form(cls, db_str):
         '2005-02-27 -> 27/2/2005 if correct format, otherwise, display as is.'
-        db_str = db_str.strip()
+        db_str = str(db_str).strip()
         if not db_str:
             return db_str
         try:
