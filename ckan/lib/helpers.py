@@ -552,7 +552,7 @@ class Page(paginate.Page):
     def _range(self, regexp_match):
         html = super(Page, self)._range(regexp_match)
         # Convert ..
-        dotdot = '\.\.'
+        dotdot = '<span class="pager_dotdot">\.\.</span>'
         dotdot_link = HTML.li(HTML.a('...', href='#'), class_='disabled')
         html = re.sub(dotdot, dotdot_link, html)
         # Convert current page
