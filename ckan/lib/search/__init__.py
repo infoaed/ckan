@@ -203,6 +203,7 @@ def rebuild(package_id=None, only_missing=False, force=False, refresh=False, def
     model.Session.commit()
     log.info('Finished rebuilding search index.')
 
+
 def commit():
     package_index = index_for(model.Package)
     package_index.commit()
