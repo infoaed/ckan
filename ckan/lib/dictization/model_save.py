@@ -1,10 +1,14 @@
 import datetime
 import uuid
+import logging
+
 from sqlalchemy.orm import class_mapper
+
 import ckan.lib.dictization as d
 import ckan.lib.helpers as h
+import ckan.new_authz as new_authz
 
-##package saving
+log = logging.getLogger(__name__)
 
 def resource_dict_save(res_dict, context):
     model = context["model"]
@@ -34,6 +38,12 @@ def resource_dict_save(res_dict, context):
                     continue
             if key == 'url' and not new and obj.url <> value:
                 obj.url_changed = True
+            # this is an internal field so ignore
+            # FIXME This helps get the tests to pass but is a hack and should
+            # be fixed properly. basically don't update the format if not needed
+            if (key == 'format' and value == obj.format
+                    or value == d.model_dictize._unified_resource_format(obj.format)):
+                continue
             setattr(obj, key, value)
         else:
             # resources save extras directly onto the object, instead
@@ -46,7 +56,7 @@ def resource_dict_save(res_dict, context):
         del obj.extras[delete_me]
 
     if context.get('pending'):
-        if session.is_modified(obj, include_collections=False):
+        if session.is_modified(obj, include_collections=False, passive=True):
             obj.state = u'pending'
     else:
         obj.state = u'active'
@@ -56,7 +66,7 @@ def resource_dict_save(res_dict, context):
 
 def package_resource_list_save(res_dicts, package, context):
     allow_partial_update = context.get("allow_partial_update", False)
-    if not res_dicts and allow_partial_update:
+    if res_dicts is None and allow_partial_update:
         return
 
     pending = context.get('pending')
@@ -65,7 +75,7 @@ def package_resource_list_save(res_dicts, package, context):
     old_list = package.resource_groups_all[0].resources_all[:]
 
     obj_list = []
-    for res_dict in res_dicts:
+    for res_dict in res_dicts or []:
         obj = resource_dict_save(res_dict, context)
         obj_list.append(obj)
 
@@ -77,34 +87,28 @@ def package_resource_list_save(res_dicts, package, context):
         else:
             resource.state = 'deleted'
         resource_list.append(resource)
-    tag_package_tag = dict((package_tag.tag, package_tag)
-                            for package_tag in
-                            package.package_tag_all)
 
 
 def package_extras_save(extra_dicts, obj, context):
     allow_partial_update = context.get("allow_partial_update", False)
-    if not extra_dicts and allow_partial_update:
+    if extra_dicts is None and allow_partial_update:
         return
 
     model = context["model"]
     session = context["session"]
 
-    extras_as_string = context.get("extras_as_string", False)
     extras_list = obj.extras_list
     old_extras = dict((extra.key, extra) for extra in extras_list)
 
     new_extras = {}
-    for extra_dict in extra_dicts:
+    for extra_dict in extra_dicts or []:
         if extra_dict.get("deleted"):
             continue
 
         if extra_dict['value'] is None:
             pass
-        elif extras_as_string:
-            new_extras[extra_dict["key"]] = extra_dict["value"]
         else:
-            new_extras[extra_dict["key"]] = h.json.loads(extra_dict["value"])
+            new_extras[extra_dict["key"]] = extra_dict["value"]
     #new
     for key in set(new_extras.keys()) - set(old_extras.keys()):
         state = 'pending' if context.get('pending') else 'active'
@@ -133,22 +137,18 @@ def group_extras_save(extras_dicts, context):
 
     model = context["model"]
     session = context["session"]
-    extras_as_string = context.get("extras_as_string", False)
 
     result_dict = {}
     for extra_dict in extras_dicts:
         if extra_dict.get("deleted"):
             continue
-        if extras_as_string:
-            result_dict[extra_dict["key"]] = extra_dict["value"]
-        else:
-            result_dict[extra_dict["key"]] = h.json.loads(extra_dict["value"])
+        result_dict[extra_dict["key"]] = extra_dict["value"]
 
     return result_dict
 
 def package_tag_list_save(tag_dicts, package, context):
     allow_partial_update = context.get("allow_partial_update", False)
-    if not tag_dicts and allow_partial_update:
+    if tag_dicts is None and allow_partial_update:
         return
 
     model = context["model"]
@@ -166,7 +166,7 @@ def package_tag_list_save(tag_dicts, package, context):
 
     tag_name_vocab = set()
     tags = set()
-    for tag_dict in tag_dicts:
+    for tag_dict in tag_dicts or []:
         if (tag_dict.get('name'), tag_dict.get('vocabulary_id')) not in tag_name_vocab:
             tag_obj = d.table_dict_save(tag_dict, model.Tag, context)
             tags.add(tag_obj)
@@ -199,61 +199,77 @@ def package_tag_list_save(tag_dicts, package, context):
 def package_membership_list_save(group_dicts, package, context):
 
     allow_partial_update = context.get("allow_partial_update", False)
-    if not group_dicts and allow_partial_update:
+    if group_dicts is None and allow_partial_update:
         return
 
     capacity = 'public'
     model = context["model"]
     session = context["session"]
     pending = context.get('pending')
+    user = context.get('user')
 
-    members = session.query(model.Member).filter_by(table_id = package.id)
+    members = session.query(model.Member) \
+            .filter(model.Member.table_id == package.id) \
+            .filter(model.Member.capacity != 'organization')
 
     group_member = dict((member.group, member)
                          for member in
                          members)
     groups = set()
-    for group_dict in group_dicts:
+    for group_dict in group_dicts or []:
         id = group_dict.get("id")
         name = group_dict.get("name")
         capacity = group_dict.get("capacity", "public")
+        if capacity == 'organization':
+            continue
         if id:
             group = session.query(model.Group).get(id)
         else:
             group = session.query(model.Group).filter_by(name=name).first()
-        groups.add(group)
+        if group:
+            groups.add(group)
 
     ## need to flush so we can get out the package id
     model.Session.flush()
-    for group in groups - set(group_member.keys()):
-        if group:
-            member_obj = model.Member(table_id = package.id,
-                                      table_name = 'package',
-                                      group = group,
-                                      capacity = capacity,
-                                      group_id=group.id,
-                                      state = 'active')
-            session.add(member_obj)
 
-
+    # Remove any groups we are no longer in
     for group in set(group_member.keys()) - groups:
         member_obj = group_member[group]
-        member_obj.capacity = capacity
-        member_obj.state = 'deleted'
-        session.add(member_obj)
+        if member_obj and member_obj.state == 'deleted':
+            continue
+        if new_authz.has_user_permission_for_group_or_org(
+                member_obj.group_id, user, 'read'):
+            member_obj.capacity = capacity
+            member_obj.state = 'deleted'
+            session.add(member_obj)
 
-    for group in set(group_member.keys()) & groups:
-        member_obj = group_member[group]
-        member_obj.capacity = capacity
-        member_obj.state = 'active'
-        session.add(member_obj)
+    # Add any new groups
+    for group in groups:
+        member_obj = group_member.get(group)
+        if member_obj and member_obj.state == 'active':
+            continue
+        if new_authz.has_user_permission_for_group_or_org(
+                group.id, user, 'read'):
+            member_obj = group_member.get(group)
+            if member_obj:
+                member_obj.capacity = capacity
+                member_obj.state = 'active'
+            else:
+                member_obj = model.Member(table_id=package.id,
+                                          table_name='package',
+                                          group=group,
+                                          capacity=capacity,
+                                          group_id=group.id,
+                                          state = 'active')
+            session.add(member_obj)
 
 
 def relationship_list_save(relationship_dicts, package, attr, context):
 
     allow_partial_update = context.get("allow_partial_update", False)
-    if not relationship_dicts and allow_partial_update:
+    if relationship_dicts is None and allow_partial_update:
         return
+
     model = context["model"]
     session = context["session"]
     pending = context.get('pending')
@@ -262,7 +278,7 @@ def relationship_list_save(relationship_dicts, package, attr, context):
     old_list = relationship_list[:]
 
     relationships = []
-    for relationship_dict in relationship_dicts:
+    for relationship_dict in relationship_dicts or []:
         obj = d.table_dict_save(relationship_dict,
                               model.PackageRelationship, context)
         relationships.append(obj)
@@ -294,20 +310,20 @@ def package_dict_save(pkg_dict, context):
     if not pkg.id:
         pkg.id = str(uuid.uuid4())
 
-    package_resource_list_save(pkg_dict.get("resources", []), pkg, context)
-    package_tag_list_save(pkg_dict.get("tags", []), pkg, context)
-    package_membership_list_save(pkg_dict.get("groups", []), pkg, context)
+    package_resource_list_save(pkg_dict.get("resources"), pkg, context)
+    package_tag_list_save(pkg_dict.get("tags"), pkg, context)
+    package_membership_list_save(pkg_dict.get("groups"), pkg, context)
 
     # relationships are not considered 'part' of the package, so only
     # process this if the key is provided
     if 'relationships_as_subject' in pkg_dict:
-        subjects = pkg_dict.get('relationships_as_subject', [])
+        subjects = pkg_dict.get('relationships_as_subject')
         relationship_list_save(subjects, pkg, 'relationships_as_subject', context)
     if 'relationships_as_object' in pkg_dict:
-        objects = pkg_dict.get('relationships_as_object', [])
+        objects = pkg_dict.get('relationships_as_object')
         relationship_list_save(objects, pkg, 'relationships_as_object', context)
 
-    extras = package_extras_save(pkg_dict.get("extras", []), pkg, context)
+    extras = package_extras_save(pkg_dict.get("extras"), pkg, context)
 
     return pkg
 
@@ -315,7 +331,14 @@ def group_member_save(context, group_dict, member_table_name):
     model = context["model"]
     session = context["session"]
     group = context['group']
-    entity_list = group_dict.get(member_table_name, [])
+    entity_list = group_dict.get(member_table_name, None)
+
+    if entity_list is None:
+        if context.get('allow_partial_update', False):
+            return {'added': [], 'removed': []}
+        else:
+            entity_list = []
+
     entities = {}
     Member = model.Member
 
@@ -367,6 +390,7 @@ def group_dict_save(group_dict, context):
     session = context["session"]
     group = context.get("group")
     allow_partial_update = context.get("allow_partial_update", False)
+    prevent_packages_update = context.get("prevent_packages_update", False)
 
     Group = model.Group
     if group:
@@ -378,10 +402,23 @@ def group_dict_save(group_dict, context):
 
     context['group'] = group
 
-    pkgs_edited = group_member_save(context, group_dict, 'packages')
-    group_member_save(context, group_dict, 'users')
-    group_member_save(context, group_dict, 'groups')
-    group_member_save(context, group_dict, 'tags')
+    # Under the new org rules we do not want to be able to update datasets
+    # via group edit so we need a way to prevent this.  It may be more
+    # sensible in future to send a list of allowed/disallowed updates for
+    # groups, users, tabs etc.
+    if not prevent_packages_update:
+        pkgs_edited = group_member_save(context, group_dict, 'packages')
+    else:
+        pkgs_edited = {
+            'added': [],
+            'removed': []
+        }
+    group_users_changed = group_member_save(context, group_dict, 'users')
+    group_groups_changed = group_member_save(context, group_dict, 'groups')
+    group_tags_changed = group_member_save(context, group_dict, 'tags')
+    log.debug('Group save membership changes - Packages: %r  Users: %r  '
+            'Groups: %r  Tags: %r', pkgs_edited, group_users_changed,
+            group_groups_changed, group_tags_changed)
 
     # We will get a list of packages that we have either added or
     # removed from the group, and trigger a re-index.
@@ -452,12 +489,9 @@ def package_api_to_dict(api1_dict, context):
             new_value = []
 
             for extras_key, extras_value in updated_extras.iteritems():
-                if extras_value is not None:
-                    new_value.append({"key": extras_key,
-                                      "value": h.json.dumps(extras_value)})
-                else:
-                    new_value.append({"key": extras_key,
-                                      "value": None})
+                new_value.append({"key": extras_key,
+                                  "value": extras_value})
+
         if key == 'groups' and len(value):
             if api_version == 1:
                 new_value = [{'name': item} for item in value]
@@ -525,7 +559,7 @@ def vocabulary_tag_list_save(new_tag_dicts, vocabulary_obj, context):
 
     # First delete any tags not in new_tag_dicts.
     for tag in vocabulary_obj.tags:
-        if tag.name not in [tag['name'] for tag in new_tag_dicts]:
+        if tag.name not in [t['name'] for t in new_tag_dicts]:
             tag.delete()
     # Now add any new tags.
     for tag_dict in new_tag_dicts:
@@ -574,19 +608,10 @@ def tag_dict_save(tag_dict, context):
     tag = d.table_dict_save(tag_dict, model.Tag, context)
     return tag
 
-def user_following_user_dict_save(data_dict, context):
+def follower_dict_save(data_dict, context, FollowerClass):
     model = context['model']
     session = context['session']
-    follower_obj = model.UserFollowingUser(
-            follower_id=model.User.get(context['user']).id,
-            object_id=data_dict['id'])
-    session.add(follower_obj)
-    return follower_obj
-
-def user_following_dataset_dict_save(data_dict, context):
-    model = context['model']
-    session = context['session']
-    follower_obj = model.UserFollowingDataset(
+    follower_obj = FollowerClass(
             follower_id=model.User.get(context['user']).id,
             object_id=data_dict['id'])
     session.add(follower_obj)

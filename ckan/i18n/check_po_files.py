@@ -11,7 +11,6 @@ Requires polib <http://pypi.python.org/pypi/polib>:
 
 '''
 import re
-import polib
 import paste.script.command
 
 def simple_conv_specs(s):
@@ -98,13 +97,17 @@ class CheckPoFiles(paste.script.command.Command):
     parser = paste.script.command.Command.standard_parser(verbose=True)
 
     def command(self):
+        import polib
+
         test_simple_conv_specs()
         test_mapping_keys()
         test_replacement_fields()
         for path in self.args:
-            print 'Checking file {}'.format(path)
+            print u'Checking file {}'.format(path)
             po = polib.pofile(path)
             for entry in po.translated_entries():
+                if not entry.msgstr:
+                    continue
                 for function in (simple_conv_specs, mapping_keys,
                         replacement_fields):
                     if not function(entry.msgid) == function(entry.msgstr):

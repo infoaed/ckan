@@ -10,13 +10,13 @@ from pylons import config
 import webhelpers.util
 from nose.tools import assert_equal
 from paste.fixture import TestRequest
+from webhelpers.html import url_escape
 
 from ckan.tests import *
 import ckan.model as model
-import ckan.authz as authz
 from ckan.lib.create_test_data import CreateTestData
-from ckan.lib.helpers import json, url_escape
 from ckan.tests import TestController as ControllerTestCase
+from ckan.common import json
 
 ACCESS_DENIED = [403]
 
@@ -44,6 +44,8 @@ class ApiTestCase(object):
 
     def post(self, offset, data, status=[200,201], *args, **kwds):
         params = '%s=1' % url_escape(self.dumps(data))
+        if 'extra_environ' in kwds:
+            self.extra_environ = kwds['extra_environ']
         response = self.app.post(offset, params=params, status=status,
             extra_environ=self.get_extra_environ())
         return response
@@ -314,14 +316,6 @@ class Api3TestCase(ApiTestCase):
         super(Api2TestCase, self).assert_msg_represents_anna(msg)
         assert 'download_url' not in msg, msg
 
-class ApiUnversionedTestCase(Api1TestCase):
-
-    api_version = ''
-    oldest_api_version = 1
-
-    def get_expected_api_version(self):
-        return self.oldest_api_version
-
 
 class BaseModelApiTestCase(ApiTestCase, ControllerTestCase):
 
@@ -377,6 +371,8 @@ class BaseModelApiTestCase(ApiTestCase, ControllerTestCase):
         # user logged in.
         cls.user = model.User.by_name(user_name)
         cls.extra_environ={'Authorization' : str(cls.user.apikey)}
+        cls.adminuser = model.User.by_name('testsysadmin')
+        cls.admin_extra_environ={'Authorization' : str(cls.adminuser.apikey)}
 
     def post_json(self, offset, data, status=None, extra_environ=None):
         ''' Posts data in the body in application/json format, used by
@@ -424,3 +420,8 @@ class BaseModelApiTestCase(ApiTestCase, ControllerTestCase):
         self.app._set_headers({}, environ)
         req = TestRequest(offset, environ, expect_errors=False)
         return self.app.do_request(req, status=status)
+
+    def set_env(self, extra_environ):
+        ''' used to reset env when admin has been forced etc '''
+        environ = self.app._make_environ()
+        environ.update(extra_environ)

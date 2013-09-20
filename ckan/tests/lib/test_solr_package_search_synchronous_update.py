@@ -3,6 +3,7 @@ import ckan.lib.search as search
 
 from ckan.tests import CreateTestData, setup_test_search_index
 from ckan.tests.lib import check_search_results
+import json
 
 class TestSearchOverallWithSynchronousIndexing:
     '''Repeat test from test_package_search with synchronous indexing
@@ -32,10 +33,11 @@ class TestSearchOverallWithSynchronousIndexing:
                 'bbox-south-lat': '54.039634',
                 'bbox-west-long': '-3.32485',
                 'constraint': 'conditions unknown; (e) intellectual property rights;',
-                'dataset-reference-date': [{'type': 'creation',
+                'dataset-reference-date': json.dumps(
+                                          [{'type': 'creation',
                                             'value': '2008-10-10'},
                                            {'type': 'revision',
-                                            'value': '2009-10-08'}],
+                                            'value': '2009-10-08'}]),
                 'guid': '00a743bf-cca4-4c19-a8e5-e64f7edbcadd',
                 'metadata-date': '2009-10-16',
                 'metadata-language': 'eng',
@@ -71,7 +73,7 @@ class TestSearchOverallWithSynchronousIndexing:
 
     def test_02_add_package_from_dict(self):
         check_search_results('', 3)
-        check_search_results('test-spatial', 1, ['council-owned-litter-bins'])
+        check_search_results('spatial', 1, ['council-owned-litter-bins'])
 
     def test_03_update_package_from_dict(self):
         package = model.Package.by_name('council-owned-litter-bins')
@@ -93,7 +95,7 @@ class TestSearchOverallWithSynchronousIndexing:
         model.repo.commit_and_remove()
 
         check_search_results('', 3)
-        check_search_results('test-spatial', 1, ['council-owned-litter-bins'])
+        check_search_results('spatial', 1, ['council-owned-litter-bins'])
 
     def test_04_delete_package_from_dict(self):
         package = model.Package.by_name('council-owned-litter-bins')

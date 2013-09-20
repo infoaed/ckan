@@ -4,8 +4,7 @@ from ckan import model
 from ckan.lib.create_test_data import CreateTestData
 import ckan.lib.helpers as h
 from ckan.tests import WsgiAppCase
-# ensure that test_tag_vocab_plugin is added as a plugin in the testing .ini file
-from ckanext.test_tag_vocab_plugin import MockVocabTagsPlugin
+import ckan.plugins as plugins
 
 TEST_VOCAB_NAME = 'test-vocab'
 
@@ -72,7 +71,7 @@ class Select(paste.fixture.Field):
 class TestWUI(WsgiAppCase):
     @classmethod
     def setup_class(cls):
-        MockVocabTagsPlugin().set_active(True)
+        plugins.load('test_tag_vocab_plugin')
         CreateTestData.create(package_type='mock_vocab_tags_plugin')
         cls.sysadmin_user = model.User.get('testsysadmin')
         cls.dset = model.Package.get('warandpeace')
@@ -86,6 +85,7 @@ class TestWUI(WsgiAppCase):
         # create a test vocab
         params = json.dumps({'name': TEST_VOCAB_NAME})
         extra_environ = {'Authorization' : str(cls.sysadmin_user.apikey)}
+        cls.extra_environ = {'Authorization' : str(cls.sysadmin_user.apikey)}
         response = cls.app.post('/api/action/vocabulary_create', params=params,
                                 extra_environ=extra_environ)
         assert json.loads(response.body)['success']
@@ -104,7 +104,7 @@ class TestWUI(WsgiAppCase):
 
     @classmethod
     def teardown_class(cls):
-        MockVocabTagsPlugin().set_active(False)
+        plugins.unload('test_tag_vocab_plugin')
         paste.fixture.Field.classes['select'] = cls.old_select
         model.repo.rebuild_db()
 
@@ -140,17 +140,17 @@ class TestWUI(WsgiAppCase):
         self._add_vocab_tag_to_dataset(self.dset.id, vocab_id, self.tag1_name)
         response = self.app.get(h.url_for(controller='package', action='read',
             id=self.dset.id))
-        assert self.tag1_name in response.body
+        assert self.tag1_name in response.body, self.tag1_name
         self._remove_vocab_tags(self.dset.id, vocab_id, self.tag1_name)
 
     def test_02_dataset_edit_add_vocab_tag(self):
         vocab_id = self._get_vocab_id(TEST_VOCAB_NAME)
         url = h.url_for(controller='package', action='edit', id=self.dset.id)
-        response = self.app.get(url)
+        response = self.app.get(url, extra_environ=self.extra_environ)
         fv = response.forms['dataset-edit']
         fv = Form(fv.response, fv.text)
         fv['vocab_tags'] = [self.tag2_name]
-        response = fv.submit('save')
+        response = fv.submit('save', extra_environ=self.extra_environ)
         response = response.follow()
         assert not self.tag1_name in response.body
         assert self.tag2_name in response.body
@@ -160,7 +160,7 @@ class TestWUI(WsgiAppCase):
     def test_02_dataset_edit_add_free_and_vocab_tags_then_edit_again(self):
         vocab_id = self._get_vocab_id(TEST_VOCAB_NAME)
         url = h.url_for(controller='package', action='edit', id=self.dset.id)
-        response = self.app.get(url)
+        response = self.app.get(url, extra_environ=self.extra_environ)
         fv = response.forms['dataset-edit']
         fv = Form(fv.response, fv.text)
 
@@ -171,12 +171,12 @@ class TestWUI(WsgiAppCase):
         fv['vocab_tags'] = [self.tag2_name]
 
         # Save the dataset and visit the page again
-        response = fv.submit('save')
+        response = fv.submit('save', extra_environ=self.extra_environ)
         response = response.follow()
         assert not self.tag1_name in response.body
         assert self.tag2_name in response.body
         url = h.url_for(controller='package', action='edit', id=self.dset.id)
-        response = self.app.get(url)
+        response = self.app.get(url, extra_environ=self.extra_environ)
         fv = response.forms['dataset-edit']
         fv = Form(fv.response, fv.text)
         assert fv['vocab_tags'].value == [self.tag2_name], fv['vocab_tags'].value
@@ -186,11 +186,11 @@ class TestWUI(WsgiAppCase):
         vocab_id = self._get_vocab_id(TEST_VOCAB_NAME)
         self._add_vocab_tag_to_dataset(self.dset.id, vocab_id, self.tag1_name)
         url = h.url_for(controller='package', action='edit', id=self.dset.id)
-        response = self.app.get(url)
+        response = self.app.get(url, extra_environ=self.extra_environ)
         fv = response.forms['dataset-edit']
         fv = Form(fv.response, fv.text)
         fv['vocab_tags'] = []
-        response = fv.submit('save')
+        response = fv.submit('save', extra_environ=self.extra_environ)
         response = response.follow()
         assert not self.tag1_name in response.body
         self._remove_vocab_tags(self.dset.id, vocab_id, self.tag1_name)
@@ -199,11 +199,11 @@ class TestWUI(WsgiAppCase):
         vocab_id = self._get_vocab_id(TEST_VOCAB_NAME)
         self._add_vocab_tag_to_dataset(self.dset.id, vocab_id, self.tag1_name)
         url = h.url_for(controller='package', action='edit', id=self.dset.id)
-        response = self.app.get(url)
+        response = self.app.get(url, extra_environ=self.extra_environ)
         fv = response.forms['dataset-edit']
         fv = Form(fv.response, fv.text)
         fv['vocab_tags'] = [self.tag2_name]
-        response = fv.submit('save')
+        response = fv.submit('save', extra_environ=self.extra_environ)
         response = response.follow()
         assert not self.tag1_name in response.body
         assert self.tag2_name in response.body
@@ -212,11 +212,11 @@ class TestWUI(WsgiAppCase):
     def test_05_dataset_edit_add_multiple_vocab_tags(self):
         vocab_id = self._get_vocab_id(TEST_VOCAB_NAME)
         url = h.url_for(controller='package', action='edit', id=self.dset.id)
-        response = self.app.get(url)
+        response = self.app.get(url, extra_environ=self.extra_environ)
         fv = response.forms['dataset-edit']
         fv = Form(fv.response, fv.text)
         fv['vocab_tags'] = [self.tag1_name, self.tag2_name]
-        response = fv.submit('save')
+        response = fv.submit('save', extra_environ=self.extra_environ)
         response = response.follow()
         assert self.tag1_name in response.body
         assert self.tag2_name in response.body

@@ -1,21 +1,27 @@
 import logging
-from pylons import config, c
+import sys
+import cgitb
+import warnings
+import xml.dom.minidom
+import urllib2
 
-from ckan import model
-from ckan.plugins import SingletonPlugin, implements, IDomainObjectModification
-from ckan.logic import get_action
-import ckan.model.domain_object as domain_object
+from pylons import config
+from paste.deploy.converters import asbool
+
+import ckan.model as model
+import ckan.plugins as p
+import ckan.logic as logic
 
 from common import (SearchIndexError, SearchError, SearchQueryError,
                     make_connection, is_available, SolrSettings)
 from index import PackageSearchIndex, NoopSearchIndex
-from query import TagSearchQuery, ResourceSearchQuery, PackageSearchQuery, QueryOptions, convert_legacy_parameters_to_solr
+from query import (TagSearchQuery, ResourceSearchQuery, PackageSearchQuery,
+                   QueryOptions, convert_legacy_parameters_to_solr)
 
 log = logging.getLogger(__name__)
 
-import sys
-import cgitb
-import warnings
+
+
 def text_traceback():
     with warnings.catch_warnings():
         warnings.simplefilter("ignore")
@@ -24,9 +30,9 @@ def text_traceback():
         ).strip()
     return res
 
-SIMPLE_SEARCH = config.get('ckan.simple_search', False)
+SIMPLE_SEARCH = asbool(config.get('ckan.simple_search', False))
 
-SUPPORTED_SCHEMA_VERSIONS = ['1.4']
+SUPPORTED_SCHEMA_VERSIONS = ['2.0']
 
 DEFAULT_OPTIONS = {
     'limit': 20,
@@ -37,7 +43,7 @@ DEFAULT_OPTIONS = {
     'ref_entity_with_attr': 'name',
     'all_fields': False,
     'search_tags': True,
-    'callback': None, # simply passed through
+    'callback': None,  # simply passed through
 }
 
 _INDICES = {
@@ -57,15 +63,18 @@ if SIMPLE_SEARCH:
     _INDICES['package'] = NoopSearchIndex
     _QUERIES['package'] = sql.PackageSearchQuery
 
+
 def _normalize_type(_type):
-    if isinstance(_type, domain_object.DomainObject):
+    if isinstance(_type, model.domain_object.DomainObject):
         _type = _type.__class__
     if isinstance(_type, type):
         _type = _type.__name__
     return _type.strip().lower()
 
+
 def index_for(_type):
-    """ Get a SearchIndex instance sub-class suitable for the specified type. """
+    """ Get a SearchIndex instance sub-class suitable for
+        the specified type. """
     try:
         _type_n = _normalize_type(_type)
         return _INDICES[_type_n]()
@@ -73,23 +82,26 @@ def index_for(_type):
         log.warn("Unknown search type: %s" % _type)
         return NoopSearchIndex()
 
-def query_for( _type):
-    """ Get a SearchQuery instance sub-class suitable for the specified type. """
+
+def query_for(_type):
+    """ Get a SearchQuery instance sub-class suitable for the specified
+        type. """
     try:
         _type_n = _normalize_type(_type)
         return _QUERIES[_type_n]()
     except KeyError, ke:
         raise SearchError("Unknown search type: %s" % _type)
 
+
 def dispatch_by_operation(entity_type, entity, operation):
     """Call the appropriate index method for a given notification."""
     try:
         index = index_for(entity_type)
-        if operation == domain_object.DomainObjectOperation.new:
+        if operation == model.domain_object.DomainObjectOperation.new:
             index.insert_dict(entity)
-        elif operation == domain_object.DomainObjectOperation.changed:
+        elif operation == model.domain_object.DomainObjectOperation.changed:
             index.update_dict(entity)
-        elif operation == domain_object.DomainObjectOperation.deleted:
+        elif operation == model.domain_object.DomainObjectOperation.deleted:
             index.remove_dict(entity)
         else:
             log.warn("Unknown operation: %s" % operation)
@@ -100,28 +112,30 @@ def dispatch_by_operation(entity_type, entity, operation):
         raise
 
 
-class SynchronousSearchPlugin(SingletonPlugin):
+class SynchronousSearchPlugin(p.SingletonPlugin):
     """Update the search index automatically."""
-    implements(IDomainObjectModification, inherit=True)
+    p.implements(p.IDomainObjectModification, inherit=True)
 
     def notify(self, entity, operation):
         if not isinstance(entity, model.Package):
             return
-        if operation != domain_object.DomainObjectOperation.deleted:
+        if operation != model.domain_object.DomainObjectOperation.deleted:
             dispatch_by_operation(
                 entity.__class__.__name__,
-                get_action('package_show')(
-                    {'model': model, 'ignore_auth': True, 'validate': False},
+                logic.get_action('package_show')(
+                    {'model': model, 'ignore_auth': True, 'validate': False,
+                     'use_cache': False},
                     {'id': entity.id}),
                 operation
             )
-        elif operation == domain_object.DomainObjectOperation.deleted:
+        elif operation == model.domain_object.DomainObjectOperation.deleted:
             dispatch_by_operation(entity.__class__.__name__,
                                   {'id': entity.id}, operation)
         else:
             log.warn("Discarded Sync. indexing for: %s" % entity)
 
-def rebuild(package_id=None,only_missing=False,force=False,refresh=False):
+
+def rebuild(package_id=None, only_missing=False, force=False, refresh=False, defer_commit=False, package_ids=None):
     '''
         Rebuilds the search index.
 
@@ -131,25 +145,34 @@ def rebuild(package_id=None,only_missing=False,force=False,refresh=False):
         True, if an exception is found, the exception will be logged, but
         the process will carry on.
     '''
-    from ckan import model
     log.info("Rebuilding search index...")
 
     package_index = index_for(model.Package)
+    context = {'model': model, 'ignore_auth': True, 'validate': False,
+        'use_cache': False}
 
     if package_id:
-        pkg_dict = get_action('package_show')(
-                    {'model': model, 'ignore_auth': True, 'validate': False},
-                    {'id': package_id})
+        pkg_dict = logic.get_action('package_show')(context,
+            {'id': package_id})
         log.info('Indexing just package %r...', pkg_dict['name'])
         package_index.remove_dict(pkg_dict)
         package_index.insert_dict(pkg_dict)
+    elif package_ids:
+        for package_id in package_ids:
+            pkg_dict = logic.get_action('package_show')(context,
+                {'id': package_id})
+            log.info('Indexing just package %r...', pkg_dict['name'])
+            package_index.update_dict(pkg_dict, True)
     else:
-        package_ids = [r[0] for r in model.Session.query(model.Package.id).filter(model.Package.state == 'active').all()]
+        package_ids = [r[0] for r in model.Session.query(model.Package.id).
+                       filter(model.Package.state == 'active').all()]
         if only_missing:
             log.info('Indexing only missing packages...')
             package_query = query_for(model.Package)
-            indexed_pkg_ids = set(package_query.get_all_entity_ids(max_results=len(package_ids)))
-            package_ids = set(package_ids) - indexed_pkg_ids     # Packages not indexed
+            indexed_pkg_ids = set(package_query.get_all_entity_ids(
+                max_results=len(package_ids)))
+            # Packages not indexed
+            package_ids = set(package_ids) - indexed_pkg_ids
 
             if len(package_ids) == 0:
                 log.info('All datasets are already indexed')
@@ -162,14 +185,15 @@ def rebuild(package_id=None,only_missing=False,force=False,refresh=False):
 
         for pkg_id in package_ids:
             try:
-                package_index.insert_dict(
-                    get_action('package_show')(
-                        {'model': model, 'ignore_auth': True, 'validate': False},
+                package_index.update_dict(
+                    logic.get_action('package_show')(context,
                         {'id': pkg_id}
-                    )
+                    ),
+                    defer_commit
                 )
-            except Exception,e:
-                log.error('Error while indexing dataset %s: %s' % (pkg_id,str(e)))
+            except Exception, e:
+                log.error('Error while indexing dataset %s: %s' %
+                          (pkg_id, str(e)))
                 if force:
                     log.error(text_traceback())
                     continue
@@ -179,33 +203,40 @@ def rebuild(package_id=None,only_missing=False,force=False,refresh=False):
     model.Session.commit()
     log.info('Finished rebuilding search index.')
 
+def commit():
+    package_index = index_for(model.Package)
+    package_index.commit()
+    log.info('Commited pending changes on the search index')
+
 def check():
-    from ckan import model
     package_query = query_for(model.Package)
 
     log.debug("Checking packages search index...")
-    pkgs_q = model.Session.query(model.Package).filter_by(state=model.State.ACTIVE)
+    pkgs_q = model.Session.query(model.Package).filter_by(
+        state=model.State.ACTIVE)
     pkgs = set([pkg.id for pkg in pkgs_q])
     indexed_pkgs = set(package_query.get_all_entity_ids(max_results=len(pkgs)))
     pkgs_not_indexed = pkgs - indexed_pkgs
-    print 'Packages not indexed = %i out of %i' % (len(pkgs_not_indexed), len(pkgs))
+    print 'Packages not indexed = %i out of %i' % (len(pkgs_not_indexed),
+                                                   len(pkgs))
     for pkg_id in pkgs_not_indexed:
         pkg = model.Session.query(model.Package).get(pkg_id)
         print pkg.revision.timestamp.strftime('%Y-%m-%d'), pkg.name
 
+
 def show(package_reference):
-    from ckan import model
     package_query = query_for(model.Package)
 
     return package_query.get_index(package_reference)
 
+
 def clear(package_reference=None):
-    from ckan import model
     package_index = index_for(model.Package)
     if package_reference:
-        log.debug("Clearing search index for dataset %s..." % package_reference)
-        package_index.delete_package({'id':package_reference})
-    else:
+        log.debug("Clearing search index for dataset %s..." %
+                  package_reference)
+        package_index.delete_package({'id': package_reference})
+    elif not SIMPLE_SEARCH:
         log.debug("Clearing search index...")
         package_index.clear()
 
@@ -231,7 +262,6 @@ def check_solr_schema_version(schema_file=None):
                       be only used for testing purposes (Default is None)
     '''
 
-    import urllib2
 
     if SIMPLE_SEARCH:
         # Not using the SOLR search backend
@@ -253,23 +283,24 @@ def check_solr_schema_version(schema_file=None):
 
         url = solr_url.strip('/') + SOLR_SCHEMA_FILE_OFFSET
 
-        req = urllib2.Request(url = url)
+        req = urllib2.Request(url=url)
         if http_auth:
-            req.add_header('Authorization',http_auth)
+            req.add_header('Authorization', http_auth)
 
         res = urllib2.urlopen(req)
     else:
         url = 'file://%s' % schema_file
         res = urllib2.urlopen(url)
 
-    import xml.dom.minidom
     tree = xml.dom.minidom.parseString(res.read())
 
     version = tree.documentElement.getAttribute('version')
     if not len(version):
-        raise SearchError('Could not extract version info from the SOLR schema, using file: \n%s' % url)
+        raise SearchError('Could not extract version info from the SOLR'
+                          ' schema, using file: \n%s' % url)
 
     if not version in SUPPORTED_SCHEMA_VERSIONS:
-        raise SearchError('SOLR schema version not supported: %s. Supported versions are [%s]'
-                % (version,', '.join(SUPPORTED_SCHEMA_VERSIONS)))
+        raise SearchError('SOLR schema version not supported: %s. Supported'
+                          ' versions are [%s]'
+                          % (version, ', '.join(SUPPORTED_SCHEMA_VERSIONS)))
     return True

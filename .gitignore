@@ -6,8 +6,6 @@ syntax: glob
 .DS_Store
 ckan.egg-info/*
 sandbox/*
-theme/*
-theme
 dist
 
 # pylons
@@ -28,8 +26,8 @@ fl_notes.txt
 .noseids
 *~
 
-# local symlinks
-ckan/public/scripts/ckanjs.js
+# custom style
+ckan/public/base/less/custom.less
 
 # nosetest coverage output
 .coverage
@@ -39,3 +37,6 @@ htmlcov/*
 ckan.log
 ckan_deb/DEBIAN/control
 ckan_deb/DEBIAN/prerm
+
+# node.js
+node_modules/

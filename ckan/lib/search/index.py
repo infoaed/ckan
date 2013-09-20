@@ -1,21 +1,29 @@
 import socket
 import string
 import logging
-import itertools
 import collections
 import json
+from dateutil.parser import parse
 
 import re
 
+import solr
+
 from pylons import config
+from paste.deploy.converters import asbool
 
 from common import SearchIndexError, make_connection
 from ckan.model import PackageRelationship
 import ckan.model as model
 from ckan.plugins import (PluginImplementations,
                           IPackageController)
+import ckan.logic as logic
+import ckan.lib.plugins as lib_plugins
+import ckan.lib.navl.dictization_functions
 
 log = logging.getLogger(__name__)
+
+_validate = ckan.lib.navl.dictization_functions.validate
 
 TYPE_FIELD = "entity_type"
 PACKAGE_TYPE = "package"
@@ -92,13 +100,24 @@ class PackageSearchIndex(SearchIndex):
     def remove_dict(self, pkg_dict):
         self.delete_package(pkg_dict)
 
-    def update_dict(self, pkg_dict):
-        self.index_package(pkg_dict)
+    def update_dict(self, pkg_dict, defer_commit=False):
+        self.index_package(pkg_dict, defer_commit)
 
-    def index_package(self, pkg_dict):
+    def index_package(self, pkg_dict, defer_commit=False):
         if pkg_dict is None:
             return
+
         pkg_dict['data_dict'] = json.dumps(pkg_dict)
+
+        if config.get('ckan.cache_validated_datasets', True):
+            package_plugin = lib_plugins.lookup_package_plugin(
+                pkg_dict.get('type'))
+
+            schema = package_plugin.show_package_schema()
+            validated_pkg_dict, errors = _validate(pkg_dict, schema, {
+                'model': model, 'session': model.Session})
+            pkg_dict['validated_data_dict'] = json.dumps(validated_pkg_dict,
+                cls=ckan.lib.navl.dictization_functions.MissingNullEncoder)
 
         # add to string field for sorting
         title = pkg_dict.get('title')
@@ -113,7 +132,7 @@ class PackageSearchIndex(SearchIndex):
         # include the extras in the main namespace
         extras = pkg_dict.get('extras', [])
         for extra in extras:
-            key, value = extra['key'], json.loads(extra['value'])
+            key, value = extra['key'], extra['value']
             if isinstance(value, (tuple, list)):
                 value = " ".join(map(unicode, value))
             key = ''.join([c for c in key if c in KEY_CHARS])
@@ -122,21 +141,43 @@ class PackageSearchIndex(SearchIndex):
                 pkg_dict[key] = value
         pkg_dict.pop('extras', None)
 
-        #Add tags and groups
+        # add tags, removing vocab tags from 'tags' list and adding them as
+        # vocab_<tag name> so that they can be used in facets
+        non_vocab_tag_names = []
         tags = pkg_dict.pop('tags', [])
-        pkg_dict['tags'] = [tag['name'] for tag in tags]
+        context = {'model': model}
 
+        for tag in tags:
+            if tag.get('vocabulary_id'):
+                data = {'id': tag['vocabulary_id']}
+                vocab = logic.get_action('vocabulary_show')(context, data)
+                key = u'vocab_%s' % vocab['name']
+                if key in pkg_dict:
+                    pkg_dict[key].append(tag['name'])
+                else:
+                    pkg_dict[key] = [tag['name']]
+            else:
+                non_vocab_tag_names.append(tag['name'])
+
+        pkg_dict['tags'] = non_vocab_tag_names
+
+        # add groups
         groups = pkg_dict.pop('groups', [])
 
-        # Capacity is different to the default only if using organizations
-        # where the dataset is only in one group. We will add the capacity
-        # from the single group that it is a part of if we have a group
-        if len(groups):
-            pkg_dict['capacity'] = groups[0].get('capacity', 'public')
+        # we use the capacity to make things private in the search index
+        if pkg_dict['private']:
+            pkg_dict['capacity'] = 'private'
         else:
             pkg_dict['capacity'] = 'public'
 
         pkg_dict['groups'] = [group['name'] for group in groups]
+
+        # if there is an owner_org we want to add this to groups for index
+        # purposes
+        if pkg_dict.get('organization'):
+           pkg_dict['organization'] = pkg_dict['organization']['name']
+        else:
+           pkg_dict['organization'] = None
 
         # tracking
         tracking_summary = pkg_dict.pop('tracking_summary', None)
@@ -167,7 +208,24 @@ class PackageSearchIndex(SearchIndex):
 
         pkg_dict[TYPE_FIELD] = PACKAGE_TYPE
 
-        pkg_dict = dict([(k.encode('ascii', 'ignore'), v) for (k, v) in pkg_dict.items()])
+        # Save dataset type
+        pkg_dict['dataset_type'] = pkg_dict['type']
+
+        # clean the dict fixing keys and dates
+        # FIXME where are we getting these dirty keys from?  can we not just
+        # fix them in the correct place or is this something that always will
+        # be needed?  For my data not changing the keys seems to not cause a
+        # problem.
+        new_dict = {}
+        for key, value in pkg_dict.items():
+            key = key.encode('ascii', 'ignore')
+            if key.endswith('_date'):
+                try:
+                    value = parse(value).isoformat() + 'Z'
+                except ValueError:
+                    continue
+            new_dict[key] = value
+        pkg_dict = new_dict
 
         for k in ('title', 'notes', 'title_string'):
             if k in pkg_dict and pkg_dict[k]:
@@ -197,7 +255,6 @@ class PackageSearchIndex(SearchIndex):
         import hashlib
         pkg_dict['index_id'] = hashlib.md5('%s%s' % (pkg_dict['id'],config.get('ckan.site_id'))).hexdigest()
 
-
         for item in PluginImplementations(IPackageController):
             pkg_dict = item.before_index(pkg_dict)
 
@@ -206,15 +263,35 @@ class PackageSearchIndex(SearchIndex):
         # send to solr:
         try:
             conn = make_connection()
-            conn.add_many([pkg_dict])
-            conn.commit(wait_flush=False, wait_searcher=False)
+            commit = not defer_commit
+            if not asbool(config.get('ckan.search.solr_commit', 'true')):
+                commit = False
+            conn.add_many([pkg_dict], _commit=commit)
+        except solr.core.SolrException, e:
+            msg = 'Solr returned an error: {0} {1} - {2}'.format(
+                e.httpcode, e.reason, e.body[:1000] # limit huge responses
+            )
+            raise SearchIndexError(msg)
+        except socket.error, e:
+            err = 'Could not connect to Solr using {0}: {1}'.format(conn.url, str(e))
+            log.error(err)
+            raise SearchIndexError(err)
+        finally:
+            conn.close()
+
+        commit_debug_msg = 'Not commited yet' if defer_commit else 'Commited'
+        log.debug('Updated index for %s [%s]' % (pkg_dict.get('name'), commit_debug_msg))
+
+    def commit(self):
+        try:
+            conn = make_connection()
+            conn.commit(wait_searcher=False)
         except Exception, e:
             log.exception(e)
             raise SearchIndexError(e)
         finally:
             conn.close()
 
-        log.debug("Updated index for %s" % pkg_dict.get('name'))
 
     def delete_package(self, pkg_dict):
         conn = make_connection()
@@ -223,7 +300,8 @@ class PackageSearchIndex(SearchIndex):
                                                        config.get('ckan.site_id'))
         try:
             conn.delete_query(query)
-            conn.commit()
+            if asbool(config.get('ckan.search.solr_commit', 'true')):
+                conn.commit()
         except Exception, e:
             log.exception(e)
             raise SearchIndexError(e)

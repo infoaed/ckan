@@ -10,7 +10,7 @@ from ckan.tests.pylons_controller import PylonsTestCase
 from base import FunctionalTestCase
 from ckan import model
 import ckan.lib.search as search
-from ckan.lib.helpers import url_for
+import ckan.lib.helpers as h
 
 class TestSearch(FunctionalTestCase):
     # 'penguin' is in all test search packages
@@ -62,12 +62,12 @@ class TestSearch(FunctionalTestCase):
 
     def test_2_title(self):
         # exact title, one word
-        res = self.app.get('/dataset?q=Opengov.se')
+        res = self.app.get('/dataset?q=Opengov')
         result = self._check_results(res, 1, 'se-opengov')
 
         # multiple words
         res = self.app.get('/dataset?q=Government%20Expenditure')
-        result = self._check_results(res, 5, 'uk-government-expenditure')
+        result = self._check_results(res, 1, 'uk-government-expenditure')
 
 class TestSearch2(FunctionalTestCase, PylonsTestCase):#, TestPackageForm):
 
@@ -83,15 +83,8 @@ class TestSearch2(FunctionalTestCase, PylonsTestCase):#, TestPackageForm):
         search.clear()
 
     @search_related
-    def test_minornavigation_2(self):
-        offset = url_for(controller='package', action='search')
-        res = self.app.get(offset)
-        res = res.click('Register it now')
-        assert 'Add - Datasets' in res
-
-    @search_related
     def test_search(self):
-        offset = url_for(controller='package', action='search')
+        offset = h.url_for(controller='package', action='search')
         print offset
         res = self.app.get(offset)
         assert 'Search - ' in res
@@ -104,7 +97,7 @@ class TestSearch2(FunctionalTestCase, PylonsTestCase):#, TestPackageForm):
 
     @search_related
     def test_search_foreign_chars(self):
-        offset = url_for(controller='package', action='search')
+        offset = h.url_for(controller='package', action='search')
         res = self.app.get(offset)
         assert 'Search - ' in res
         self._check_search_results(res, u'th\xfcmb', ['<strong>1</strong>'])
@@ -113,7 +106,7 @@ class TestSearch2(FunctionalTestCase, PylonsTestCase):#, TestPackageForm):
     @search_related
     def test_search_escape_chars(self):
         payload = '?q=fjdkf%2B%C2%B4gfhgfkgf%7Bg%C2%B4pk&search=Search+Packages+%C2%BB'
-        offset = url_for(controller='package', action='search') + payload
+        offset = h.url_for(controller='package', action='search') + payload
         results_page = self.app.get(offset)
         assert 'Search - ' in results_page, results_page
         results_page = self.main_div(results_page)
@@ -161,11 +154,11 @@ class TestNonActivePackages(FunctionalTestCase):
 
     @search_related
     def test_search(self):
-        offset = url_for(controller='package', action='search')
+        offset = h.url_for(controller='package', action='search')
         res = self.app.get(offset)
         assert 'Search - ' in res
         form = res.forms['dataset-search']
-        form['q'] =  str(self.non_active_name)
+        form['q'] =  'name:' + str(self.non_active_name)
         results_page = form.submit()
         assert 'Search - ' in results_page, results_page
         assert '<strong>0</strong> datasets found' in results_page, (self.non_active_name, results_page)

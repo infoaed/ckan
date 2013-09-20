@@ -1,40 +1,39 @@
-<html xmlns:py="http://genshi.edgewall.org/"
-  xmlns:i18n="http://genshi.edgewall.org/i18n"
-  xmlns:xi="http://www.w3.org/2001/XInclude"
-  py:strip="">
-  
-  <py:def function="page_title">Tags</py:def>
+{% extends "page.html" %}
 
-  <div py:match="content">
-    <h2>Tags</h2>
+{% block subtitle %}{{ _('Tags') }}{% endblock %}
 
-    <form class="form-inline" id="tag-search" action="" method="GET">
-      <input type="text" id="q" name="q" value="${c.q}" />
-      <input class="btn btn-primary" type="submit" name="search" value="${_('Search')} &raquo;" />
+{% block breadcrumb_content %}
+  <li class="active"><a href="">{{ _('Tags') }}</a></li>
+{% endblock %}
+
+{% block primary_content %}
+  <article class="module">
+    <div class="module-content">
+      <h1 class="page-heading">{% block page_heading %}{{ _('Tags') }}{% endblock %}</h1>
+      {% block tags_list %}
+      <ul class="unstyled">
+        {% block tags_list_inner %}
+        {% for tag in c.page.items %}
+          <li>{{ h.link_to(tag.display_name, h.url_for(controller='package', action='search', tags=tag.name), class_='tag') }}</li>
+        {% endfor %}
+        {% endblock %}
+      </ul>
+      {% endblock %}
+    </div>
+    {% block page_pagination %}
+    {{ c.page.pager(q=c.q) }}
+    {% endblock %}
+  </article>
+{% endblock %}
+
+{% block secondary_content %}
+  <section class="module module-narrow module-shallow simple-input">
+    <form class="module-content field-bordered" action="{% url_for controller='tag', action='index' %}" method="get">
+      <div class="field">
+        <label for="field-tag-search">{{ _('Search Tags') }}</label>
+        <input id="field-tag-search" type="text" class="field" name="q" placeholder="{{ _('Search Tags') }}" />
+        <button class="btn-search" type="submit">{{ _('Search') }}</button>
+      </div>
     </form>
-    
-    <hr />
-    
-    <p>
-      <py:choose test="">
-        <py:when test="c.q" i18n:msg="item_count, tagname">
-          There are <strong>${c.page.item_count}</strong> results for &lsquo;<strong>${c.q.strip()}</strong>&rsquo;.
-        </py:when>
-        <py:otherwise i18n:msg="item_count">
-          There are <strong>${c.page.item_count}</strong> results for tags.
-        </py:otherwise>
-      </py:choose>
-    </p>
-    
-    ${c.page.pager(q=c.q)}
-    ${tag_list(c.page.items)}
-    ${c.page.pager(q=c.q)}
-    
-    <p py:if="c.q">
-      ${h.link_to(_('Clear search'), h.url_for(controller='tag', action='index', id=None))} and see all tags.
-    </p>
-    
-  </div>
-
-  <xi:include href="layout.html" />
-</html>
+  </section>
+{% endblock %}

@@ -1,25 +1,27 @@
-<html xmlns:py="http://genshi.edgewall.org/"
-  xmlns:i18n="http://genshi.edgewall.org/i18n"
-  xmlns:xi="http://www.w3.org/2001/XInclude"
-  py:strip="">
+{% extends "admin/base.html" %}
 
-  <py:def function="page_title">Administration Dashboard</py:def>
-  <py:def function="page_heading">Administration Dashboard</py:def>
+{% block primary_content_inner %}
+  <ul class="user-list">
+    {% for user in c.sysadmins %}
+      <li>{{ h.linked_user(user) }}</li>
+    {% endfor %}
+  </ul>
+{% endblock %}
 
-  <div py:match="content">
-    <h3>Current Sysadmins</h3>
-    <p>You can change sysadmins on the <a
-      href="${h.url_for('ckanadmin',
-      action='authz')}">authorization page</a>.</p>
-    <ul>
-      <li py:for="user in c.sysadmins">
-        ${h.linked_user(user)}
-      </li>
-    </ul>
-
-    <span class="insert-comment-recent"></span>
+{% block secondary_content %}
+  <div class="module module-narrow module-shallow">
+    <h2 class="module-heading">
+      <i class="icon-info-sign"></i>
+      {{ _('What are sysadmins?') }}
+    </h2>
+    <div class="module-content">
+      {% set docs_url = "http://docs.ckan.org/en/{0}/paster.html#sysadmin-give-sysadmin-rights".format(g.ckan_doc_version) %}
+      {% trans %}
+        <p>A sysadmin is someone that has full control over a CKAN instance.
+          You can only add CKAN sysadmins via the <code>sysadmin</code> paster
+          command.</p>
+      {% endtrans %}
+      <p><a href="{{ docs_url }}" target="_blank">{{ _('Read the documentation') }}</a></p>
+    </div>
   </div>
-
-  <xi:include href="layout.html" />
-</html>
-
+{% endblock %}

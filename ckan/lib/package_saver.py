@@ -1,10 +1,9 @@
-import genshi
-from sqlalchemy import orm
 import ckan.lib.helpers as h
-from ckan.lib.base import *
+import ckan.lib.base as base
+import ckan.model as model
 import ckan.rating
-from pylons import g
-from ckan.lib.dictization import table_dictize
+
+from ckan.common import g, c, _
 
 # Todo: Factor out unused original_name argument.
 
@@ -22,26 +21,20 @@ class PackageSaver(object):
         render. 
         Note that the actual calling of render('package/read') is left
         to the caller.'''
-        try:
-            notes_formatted = ckan.misc.MarkdownFormat().to_html(pkg.get('notes',''))
-            c.pkg_notes_formatted = genshi.HTML(notes_formatted)
-        except Exception, e:
-            error_msg = "<span class='inline-warning'>%s</span>" % _("Cannot render package description")
-            c.pkg_notes_formatted = genshi.HTML(error_msg)
+        c.pkg_notes_formatted = h.render_markdown(pkg.get('notes'))
+
         c.current_rating, c.num_ratings = ckan.rating.get_rating(context['package'])
         url = pkg.get('url', '')
         c.pkg_url_link = h.link_to(url, url, rel='foaf:homepage', target='_blank') \
                 if url else _("No web page given")
-        if pkg.get('author_email', False):
-            c.pkg_author_link = cls._person_email_link(pkg.get('author', ''), pkg.get('author_email', ''), "Author")
-        else:
-            c.pkg_author_link = _("Author not given")
-        maintainer = pkg.get('maintainer', '')
-        maintainer_email = pkg.get('maintainer_email', '')
-        if maintainer_email:
-            c.pkg_maintainer_link = cls._person_email_link(maintainer, maintainer_email, "Maintainer")
-        else:
-            c.pkg_maintainer_link = _("Maintainer not given")
+
+        c.pkg_author_link = cls._person_email_link(
+                name=pkg.get('author'), email=pkg.get('author_email'),
+                fallback=_("Author not given"))
+        c.pkg_maintainer_link = cls._person_email_link(
+                name=pkg.get('maintainer'), email=pkg.get('maintainer_email'),
+                fallback=_("Maintainer not given"))
+
         c.package_relationships = context['package'].get_relationships_printable()
         c.pkg_extras = []
         for extra in sorted(pkg.get('extras',[]), key=lambda x:x['key']):
@@ -79,14 +72,14 @@ class PackageSaver(object):
         fs.validate()
         validates = not (errors or fs.errors)
         if not validates:
-            raise ValidationException(fs)
+            raise base.ValidationException(fs)
         # sync
         try:
             rev = model.repo.new_revision()
             rev.author = author
             rev.message = log_message
             fs.sync()
-        except Exception, inst:
+        except Exception:
             model.Session.rollback()
             raise
         else:
@@ -102,9 +95,12 @@ class PackageSaver(object):
         return errors
 
     @classmethod
-    def _person_email_link(cls, name, email, reference):
-        assert email
-        return h.mail_to(email_address=email, name=name or email, encode='hex')
+    def _person_email_link(cls, name, email, fallback):
+        if email:
+            return h.mail_to(email_address=email, name=name or email,
+                    encode='hex')
+        else:
+            return name or fallback
 
 class WritePackageFromBoundFieldset(object):
 

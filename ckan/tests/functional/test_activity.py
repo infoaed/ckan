@@ -1,8 +1,13 @@
+from pylons import config
 from pylons.test import pylonsapp
+from paste.deploy.converters import asbool
 import paste.fixture
-import ckan
 from routes import url_for
+from nose import SkipTest
+
+import ckan
 from ckan.logic.action.create import package_create, user_create, group_create
+from ckan.logic.action.create import follow_dataset, follow_user
 from ckan.logic.action.update import package_update, resource_update
 from ckan.logic.action.update import user_update, group_update
 from ckan.logic.action.delete import package_delete
@@ -17,6 +22,8 @@ class TestActivity(HtmlCheckMethods):
     """
     @classmethod
     def setup(cls):
+        if not asbool(config.get('ckan.activity_streams_enabled', 'true')):
+            raise SkipTest('Activity streams not enabled')
         ckan.tests.CreateTestData.create()
         cls.sysadmin_user = ckan.model.User.get('testsysadmin')
         cls.app = paste.fixture.TestApp(pylonsapp)
@@ -25,8 +32,9 @@ class TestActivity(HtmlCheckMethods):
     def teardown(cls):
         ckan.model.repo.rebuild_db()
 
-    def test_activity(self):
-        """Test activity streams HTML rendering."""
+
+    def test_user_activity(self):
+        """Test user activity streams HTML rendering."""
 
         # Register a new user.
         user_dict = {'name': 'billybeane',
@@ -39,7 +47,6 @@ class TestActivity(HtmlCheckMethods):
             'session': ckan.model.Session,
             'user': self.sysadmin_user.name,
             'allow_partial_update': True,
-            'extras_as_string': True,
             }
         user = user_create(context, user_dict)
         offset = url_for(controller='user', action='read', id=user['id'])
@@ -58,6 +65,7 @@ class TestActivity(HtmlCheckMethods):
         # should not be calling package_create like this we should be
         # going via the api or package controllers
         context['api_version'] = 3
+        context['ignore_auth'] = True
         package = package_create(context, package)
         result = self.app.get(offset, status=200)
         stripped = self.strip_tags(result)
@@ -112,6 +120,20 @@ class TestActivity(HtmlCheckMethods):
                 (user['fullname'], resource['name'], package['title']) \
                 in stripped, stripped
 
+        # Follow the package.
+        follow_dataset(context, {'id': package['id']})
+        result = self.app.get(offset, status=200)
+        stripped = self.strip_tags(result)
+        assert '%s started following %s' % (user['fullname'],
+                package['title']) not in stripped, stripped
+
+        # Follow another user.
+        follow_user(context, {'id': 'joeadmin'})
+        result = self.app.get(offset, status=200)
+        stripped = self.strip_tags(result)
+        assert '%s started following %s' % (user['fullname'],
+                'joeadmin') not in stripped, stripped
+
         # Create a new group.
         group = {
             'name': 'baseball-stats-group',
@@ -121,7 +143,7 @@ class TestActivity(HtmlCheckMethods):
         group = group_create(context, group)
         result = self.app.get(offset, status=200)
         stripped = self.strip_tags(result)
-        assert '%s created the group %s' % (user['fullname'], group['name']) \
+        assert '%s created the group %s' % (user['fullname'], group['title']) \
                 in stripped, stripped
 
         # Update the group.
@@ -129,7 +151,7 @@ class TestActivity(HtmlCheckMethods):
         group = group_update(context, group)
         result = self.app.get(offset, status=200)
         stripped = self.strip_tags(result)
-        assert '%s updated the group %s' % (user['fullname'], group['name']) \
+        assert '%s updated the group %s' % (user['fullname'], group['title']) \
                 in stripped, stripped
 
         # Delete the group.
@@ -137,7 +159,7 @@ class TestActivity(HtmlCheckMethods):
         group_update(context, group)
         result = self.app.get(offset, status=200)
         stripped = self.strip_tags(result)
-        assert '%s deleted the group %s' % (user['fullname'], group['name']) \
+        assert '%s deleted the group %s' % (user['fullname'], group['title']) \
                 in stripped, stripped
 
         # Add a new tag to the package.
@@ -188,7 +210,10 @@ class TestActivity(HtmlCheckMethods):
                 in stripped, stripped
 
         # Delete the package.
+        # we need to get round the delete permission
+        context['ignore_auth'] = True
         package_delete(context, package)
+        del context['ignore_auth']
         result = self.app.get(offset, status=200)
         stripped = self.strip_tags(result)
         assert '%s deleted the dataset %s' % \
@@ -208,3 +233,12 @@ class TestActivity(HtmlCheckMethods):
         result = self.app.get(offset, status=200)
         assert result.body.count('<div class="activity">') \
                 == 15
+
+        # The user's dashboard page should load successfully and have the
+        # latest 15 activities on it.
+        offset = url_for(controller='user', action='dashboard')
+        extra_environ = {'Authorization':
+                str(ckan.model.User.get('billybeane').apikey)}
+        result = self.app.post(offset, extra_environ=extra_environ,
+                status=200)
+        assert result.body.count('<div class="activity">') == 15

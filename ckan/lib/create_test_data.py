@@ -3,12 +3,11 @@ from collections import defaultdict
 import datetime
 
 import ckan.model as model
-import authztool
 
 log = logging.getLogger(__name__)
 
 class CreateTestData(object):
-    # keep track of the objects created by this class so that 
+    # keep track of the objects created by this class so that
     # tests can easy call delete() method to delete them all again.
     pkg_names = []
     tag_names = []
@@ -149,15 +148,15 @@ class CreateTestData(object):
         new_group_names = set()
         new_groups = {}
 
-        rev = model.repo.new_revision()
-        rev.author = cls.author
-        rev.message = u'Creating test packages.'
 
         admins_list = defaultdict(list) # package_name: admin_names
         if package_dicts:
             if isinstance(package_dicts, dict):
                 package_dicts = [package_dicts]
             for item in package_dicts:
+                rev = model.repo.new_revision()
+                rev.author = cls.author
+                rev.message = u'Creating test packages.'
                 pkg_dict = {}
                 for field in cls.pkg_core_fields:
                     if item.has_key(field):
@@ -246,7 +245,7 @@ class CreateTestData(object):
                 model.setup_default_user_roles(pkg, admins=[])
                 for admin in admins:
                     admins_list[item['name']].append(admin)
-            model.repo.commit_and_remove()
+                model.repo.commit_and_remove()
 
         needs_commit = False
 
@@ -332,6 +331,7 @@ class CreateTestData(object):
                 log.warning('Cannot create group "%s" as it already exists.' % \
                                 (group_dict['name']))
                 continue
+            pkg_names = group_dict.pop('packages', [])
             group = model.Group(name=unicode(group_dict['name']))
             group.type = auth_profile or 'group'
             for key in group_dict:
@@ -339,7 +339,6 @@ class CreateTestData(object):
                     setattr(group, key, group_dict[key])
                 else:
                     group.extras[key] = group_dict[key]
-            pkg_names = group_dict.get('packages', [])
             assert isinstance(pkg_names, (list, tuple))
             for pkg_name in pkg_names:
                 pkg = model.Package.by_name(unicode(pkg_name))
@@ -397,8 +396,8 @@ class CreateTestData(object):
             )
         model.Session.add(pr1)
         model.Session.add(pr2)
-        pkg1.resources.append(pr1)
-        pkg1.resources.append(pr2)
+        pkg1.resource_groups_all[0].resources_all.append(pr1)
+        pkg1.resource_groups_all[0].resources_all.append(pr2)
         pkg1.notes = u'''Some test notes
 
 ### A 3rd level heading
@@ -460,12 +459,14 @@ left arrow <
         model.Session.add(model.Member(table_id=pkg2.id, table_name='package', group=david))
         model.Session.add(model.Member(table_id=pkg1.id, table_name='package', group=roger))
         # authz
+        sysadmin = model.User(name=u'testsysadmin', password=u'testsysadmin')
+        sysadmin.sysadmin = True
         model.Session.add_all([
             model.User(name=u'tester', apikey=u'tester', password=u'tester'),
             model.User(name=u'joeadmin', password=u'joeadmin'),
-            model.User(name=u'annafan', about=u'I love reading Annakarenina. My site: <a href="http://anna.com">anna.com</a>', password=u'annafan'),
+            model.User(name=u'annafan', about=u'I love reading Annakarenina. My site: http://anna.com', password=u'annafan'),
             model.User(name=u'russianfan', password=u'russianfan'),
-            model.User(name=u'testsysadmin', password=u'testsysadmin'),
+            sysadmin,
             ])
         cls.user_refs.extend([u'tester', u'joeadmin', u'annafan', u'russianfan', u'testsysadmin'])
         model.repo.commit_and_remove()
@@ -483,33 +484,9 @@ left arrow <
         model.setup_default_user_roles(david, [russianfan])
         model.setup_default_user_roles(roger, [russianfan])
         model.add_user_to_role(visitor, model.Role.ADMIN, roger)
-        testsysadmin = model.User.by_name(u'testsysadmin')
-        model.add_user_to_role(testsysadmin, model.Role.ADMIN, model.System())
 
         model.repo.commit_and_remove()
 
-        # Create a couple of authorization groups
-        for ag_name in [u'anauthzgroup', u'anotherauthzgroup']:
-            ag=model.AuthorizationGroup.by_name(ag_name)
-            if not ag: #may already exist, if not create
-                ag=model.AuthorizationGroup(name=ag_name)
-                model.Session.add(ag)
-
-        model.repo.commit_and_remove()
-
-        # and give them a range of roles on various things
-        ag = model.AuthorizationGroup.by_name(u'anauthzgroup')
-        aag = model.AuthorizationGroup.by_name(u'anotherauthzgroup')
-        pkg = model.Package.by_name(u'warandpeace')
-        g = model.Group.by_name('david')
-
-        model.add_authorization_group_to_role(ag, u'editor', model.System())
-        model.add_authorization_group_to_role(ag, u'reader', pkg)
-        model.add_authorization_group_to_role(ag, u'admin', aag)
-        model.add_authorization_group_to_role(aag, u'editor', ag)
-        model.add_authorization_group_to_role(ag, u'editor', g)
-
-        model.repo.commit_and_remove()
 
     # method used in DGU and all good tests elsewhere
     @classmethod
@@ -544,19 +521,6 @@ left arrow <
     def create_user(cls, name='', **kwargs):
         cls._create_user_without_commit(name, **kwargs)
         model.Session.commit()
-
-    @classmethod
-    def create_roles(cls, roles):
-        '''Each role is a tuple (object_name, role, subject_name).
-        There is clever searching going on to find the objects of any type,
-        by name or ID. You can also use the subject_name='system'.
-        '''
-        for role_tuple in roles:
-            object_name, role, subject_name = role_tuple
-            authztool.RightsTool.make_or_remove_roles('make', object_name, role, subject_name,
-                                                      except_on_error=True,
-                                                      do_commit=False)
-        model.repo.commit_and_remove()    
 
     @classmethod
     def flag_for_deletion(cls, pkg_names=[], tag_names=[], group_names=[],
@@ -673,7 +637,7 @@ left arrow <
         model.Package.get('annakarenina').add_tag(sonata_tag)
 
         model.Session.commit()
-    
+
 
 
 search_items = [{'name':'gils',
@@ -868,7 +832,6 @@ terms = ('A Novel By Tolstoy',
     'tolstoy',
     "Dave's books",
     "Roger's books",
-    'Other (Open)',
     'romantic novel',
     'book',
     '123',
@@ -889,7 +852,6 @@ german_translations = {
     'tolstoy': 'Tolstoi',
     "Dave's books": 'Daves Bucher',
     "Roger's books": 'Rogers Bucher',
-    'Other (Open)': 'Andere (Open)',
     'romantic novel': 'Liebesroman',
     'book': 'Buch',
     '456': 'Realismus',

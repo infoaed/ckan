@@ -1,24 +1,35 @@
+import re
+import logging
+
 from pylons import config
+from solr import SolrException
 from paste.deploy.converters import asbool
 from paste.util.multidict import MultiDict
-from ckan import model
-from ckan.logic import get_action
-from ckan.lib.helpers import json
-from common import make_connection, SearchError, SearchQueryError
-import logging
+
+from ckan.common import json
+from ckan.lib.search.common import make_connection, SearchError, SearchQueryError
+import ckan.logic as logic
+import ckan.model as model
+
 log = logging.getLogger(__name__)
 
 _open_licenses = None
 
 VALID_SOLR_PARAMETERS = set([
-    'q', 'fl', 'fq', 'rows', 'sort', 'start', 'wt', 'qf',
+    'q', 'fl', 'fq', 'rows', 'sort', 'start', 'wt', 'qf', 'bf', 'boost',
     'facet', 'facet.mincount', 'facet.limit', 'facet.field',
-    'extras' # Not used by Solr, but useful for extensions
+    'extras', 'fq_list', 'tie', 'defType', 'mm'
 ])
 
 # for (solr) package searches, this specifies the fields that are searched
 # and their relative weighting
 QUERY_FIELDS = "name^4 title^4 tags^2 groups^2 text"
+
+solr_regex = re.compile(r'([\\+\-&|!(){}\[\]^"~*?:])')
+
+def escape_legacy_argument(val):
+    # escape special chars \+-&|!(){}[]^"~*?:
+    return solr_regex.sub(r'\\\1', val)
 
 def convert_legacy_parameters_to_solr(legacy_params):
     '''API v1 and v2 allowed search params that the SOLR syntax does not
@@ -53,9 +64,10 @@ def convert_legacy_parameters_to_solr(legacy_params):
                 tag_list = [value_obj]
             else:
                 raise SearchQueryError('Was expecting either a string or JSON list for the tags parameter: %r' % value)
-            solr_q_list.extend(['tags:"%s"' % tag for tag in tag_list])
+            solr_q_list.extend(['tags:"%s"' % escape_legacy_argument(tag) for tag in tag_list])
         else:
             if len(value.strip()):
+                value = escape_legacy_argument(value)
                 if ' ' in value:
                     value = '"%s"' % value
                 solr_q_list.append('%s:%s' % (search_key, value))
@@ -150,20 +162,30 @@ class SearchQuery(object):
 
 class TagSearchQuery(SearchQuery):
     """Search for tags."""
-    def run(self, query=[], fields={}, options=None, **kwargs):
+    def run(self, query=None, fields=None, options=None, **kwargs):
+        query = [] if query is None else query
+        fields = {} if fields is None else fields
+
         if options is None:
             options = QueryOptions(**kwargs)
         else:
             options.update(kwargs)
 
+        if isinstance(query, basestring):
+            query = [query]
+
+        query = query[:] # don't alter caller's query list.
+        for field, value in fields.items():
+            if field in ('tag', 'tags'):
+                query.append(value)
+
         context = {'model': model, 'session': model.Session}
         data_dict = {
             'query': query,
-            'fields': fields,
             'offset': options.get('offset'),
             'limit': options.get('limit')
         }
-        results = get_action('tag_search')(context, data_dict)
+        results = logic.get_action('tag_search')(context, data_dict)
 
         if not options.return_objects:
             # if options.all_fields is set, return a dict
@@ -186,14 +208,28 @@ class ResourceSearchQuery(SearchQuery):
         else:
             options.update(kwargs)
 
-        context = {'model':model, 'session': model.Session}
+        context = {
+            'model':model,
+            'session': model.Session,
+            'search_query': True,
+        }
+
+        # Transform fields into structure required by the resource_search
+        # action.
+        query = []
+        for field, terms in fields.items():
+            if isinstance(terms, basestring):
+                terms = terms.split()
+            for term in terms:
+                query.append(':'.join([field, term]))
+
         data_dict = {
-            'fields': fields,
+            'query': query,
             'offset': options.get('offset'),
             'limit': options.get('limit'),
             'order_by': options.get('order_by')
         }
-        results = get_action('resource_search')(context, data_dict)
+        results = logic.get_action('resource_search')(context, data_dict)
 
         if not options.return_objects:
             # if options.all_fields is set, return a dict
@@ -243,11 +279,12 @@ class PackageSearchQuery(SearchQuery):
             data = json.loads(solr_response)
 
             if data['response']['numFound'] == 0:
-             raise SearchError('Dataset not found in the search index: %s' % reference)
+                raise SearchError('Dataset not found in the search index: %s' % reference)
             else:
                 return data['response']['docs'][0]
         except Exception, e:
-            log.exception(e)
+            if not isinstance(e, SearchError):
+                log.exception(e)
             raise SearchError(e)
         finally:
             conn.close()
@@ -262,7 +299,6 @@ class PackageSearchQuery(SearchQuery):
 
         May raise SearchQueryError or SearchError.
         '''
-        from solr import SolrException
         assert isinstance(query, (dict, MultiDict))
         # check that query keys are valid
         if not set(query.keys()) <= VALID_SOLR_PARAMETERS:
@@ -284,11 +320,6 @@ class PackageSearchQuery(SearchQuery):
             rows_to_query = rows_to_return
         query['rows'] = rows_to_query
 
-        # order by score if no 'sort' term given
-        order_by = query.get('sort')
-        if order_by == 'rank' or order_by is None:
-            query['sort'] = 'score desc, name asc'
-
         # show only results from this CKAN instance
         fq = query.get('fq', '')
         if not '+site_id:' in fq:
@@ -297,7 +328,10 @@ class PackageSearchQuery(SearchQuery):
         # filter for package status
         if not '+state:' in fq:
             fq += " +state:active"
-        query['fq'] = fq
+        query['fq'] = [fq]
+
+        fq_list = query.get('fq_list', [])
+        query['fq'].extend(fq_list)
 
         # faceting
         query['facet'] = query.get('facet', 'true')
@@ -311,11 +345,15 @@ class PackageSearchQuery(SearchQuery):
         query['wt'] = query.get('wt', 'json')
 
         # If the query has a colon in it then consider it a fielded search and do use dismax.
-        if ':' not in query['q']:
-            query['defType'] = 'dismax'
-            query['tie'] = '0.1'
-            query['mm'] = '1'
+        defType = query.get('defType', 'dismax')
+        if ':' not in query['q'] or defType == 'edismax':
+            query['defType'] = defType
+            query['tie'] = query.get('tie', '0.1')
+            # this minimum match is explained
+            # http://wiki.apache.org/solr/DisMaxQParserPlugin#mm_.28Minimum_.27Should.27_Match.29
+            query['mm'] = query.get('mm', '2<-1 5<80%')
             query['qf'] = query.get('qf', QUERY_FIELDS)
+
 
         conn = make_connection()
         log.debug('Package query: %r' % query)

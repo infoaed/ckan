@@ -27,12 +27,15 @@ from paste.deploy import loadapp
 
 from ckan.lib.create_test_data import CreateTestData
 from ckan.lib import search
-from ckan.lib.helpers import _flash, url_for
-from ckan.lib.helpers import json
+import ckan.lib.helpers as h
 from ckan.logic import get_action
 from ckan.logic.action import get_domain_object
 import ckan.model as model
 from ckan import ckan_nose_plugin
+from ckan.common import json
+
+# evil hack as url_for is passed out
+url_for = h.url_for
 
 __all__ = ['url_for',
            'TestController',
@@ -93,7 +96,7 @@ class CommonFixtureMethods(BaseCase):
 
     @classmethod
     def create_user(cls, **kwds):
-        user = model.User(name=kwds['name'])             
+        user = model.User(name=kwds['name'])
         model.Session.add(user)
         model.Session.commit()
         model.Session.remove()
@@ -189,8 +192,8 @@ class CheckMethods(BaseCase):
 
     def assert_isinstance(self, value, check):
         assert isinstance(value, check), 'Not an instance: %s' % ((value, check),)
-    
-    def assert_raises(self, exception_class, callable, *args, **kwds): 
+
+    def assert_raises(self, exception_class, callable, *args, **kwds):
         try:
             callable(*args, **kwds)
         except exception_class:
@@ -265,7 +268,7 @@ class CkanServerCase(BaseCase):
                 break
 
     @staticmethod
-    def _stop_ckan_server(process): 
+    def _stop_ckan_server(process):
         pid = process.pid
         pid = int(pid)
         if os.system("kill -9 %d" % pid):
@@ -292,8 +295,8 @@ class TestSearchIndexer:
      (create packages)
     self.tsi.index()
      (do searching)
-    ''' 
-    
+    '''
+
     def __init__(self):
         from ckan import plugins
         if not is_search_supported():
@@ -302,18 +305,18 @@ class TestSearchIndexer:
 
     @classmethod
     def index(cls):
-        pass     
+        pass
 
     @classmethod
     def list(cls):
         return [model.Package.get(pkg_index.package_id).name for pkg_index in model.Session.query(model.PackageSearch)]
-            
+
 def setup_test_search_index():
-    from ckan import plugins
+    #from ckan import plugins
     if not is_search_supported():
         raise SkipTest("Search not supported")
     search.clear()
-    plugins.load('synchronous_search')
+    #plugins.load('synchronous_search')
 
 def is_search_supported():
     is_supported_db = not model.engine_is_sqlite()
@@ -328,6 +331,11 @@ def is_regex_supported():
 
 def is_migration_supported():
     is_supported_db = not model.engine_is_sqlite()
+    return is_supported_db
+
+def is_datastore_supported():
+    # we assume that the datastore uses the same db engine that ckan uses
+    is_supported_db = model.engine_is_pg()
     return is_supported_db
 
 def search_related(test):
@@ -345,7 +353,7 @@ def regex_related(test):
     return test
 
 def clear_flash(res=None):
-    messages = _flash.pop_messages()
+    messages = h._flash.pop_messages()
 
 try:
     from nose.tools import assert_in, assert_not_in
@@ -353,17 +361,15 @@ except ImportError:
     def assert_in(a, b, msg=None):
         assert a in b, msg or '%r was not in %r' % (a, b)
     def assert_not_in(a, b, msg=None):
-        assert a not in b, msg or '%r was in %r' % (a, b)        
+        assert a not in b, msg or '%r was in %r' % (a, b)
 
 class TestRoles:
     @classmethod
-    def get_roles(cls, domain_object_ref, user_ref=None, authgroup_ref=None,
+    def get_roles(cls, domain_object_ref, user_ref=None,
                   prettify=True):
         data_dict = {'domain_object': domain_object_ref}
         if user_ref:
             data_dict['user'] = user_ref
-        if authgroup_ref:
-            data_dict['authorization_group'] = authgroup_ref
         role_dicts = get_action('roles_show') \
                      ({'model': model, 'session': model.Session}, \
                       data_dict)['roles']
@@ -387,12 +393,12 @@ class TestRoles:
                     pretty_role[key] = value
             if one_per_line:
                 pretty_role = '"%s" is "%s" on "%s"' % (
-                    pretty_role.get('user') or pretty_role.get('authorized_group'),
+                    pretty_role.get('user'),
                     pretty_role['role'],
-                    pretty_role.get('package') or pretty_role.get('group') or pretty_role.get('authorization_group') or pretty_role.get('context'))
+                    pretty_role.get('package') or pretty_role.get('group') or pretty_role.get('context'))
             pretty_roles.append(pretty_role)
         return pretty_roles
-    
+
 
 class StatusCodes:
     STATUS_200_OK = 200
@@ -401,4 +407,62 @@ class StatusCodes:
     STATUS_403_ACCESS_DENIED = 403
     STATUS_404_NOT_FOUND = 404
     STATUS_409_CONFLICT = 409
-    
+
+
+def call_action_api(app, action, apikey=None, status=200, **kwargs):
+    '''POST an HTTP request to the CKAN API and return the result.
+
+    Any additional keyword arguments that you pass to this function as **kwargs
+    are posted as params to the API.
+
+    Usage:
+
+        package_dict = post(app, 'package_create', apikey=apikey,
+                name='my_package')
+        assert package_dict['name'] == 'my_package'
+
+        num_followers = post(app, 'user_follower_count', id='annafan')
+
+    If you are expecting an error from the API and want to check the contents
+    of the error dict, you have to use the status param otherwise an exception
+    will be raised:
+
+        error_dict = post(app, 'group_activity_list', status=403,
+                id='invalid_id')
+        assert error_dict['message'] == 'Access Denied'
+
+    :param app: the test app to post to
+    :type app: paste.fixture.TestApp
+
+    :param action: the action to post to, e.g. 'package_create'
+    :type action: string
+
+    :param apikey: the API key to put in the Authorization header of the post
+        (optional, default: None)
+    :type apikey: string
+
+    :param status: the HTTP status code expected in the response from the CKAN
+        API, e.g. 403, if a different status code is received an exception will
+        be raised (optional, default: 200)
+    :type status: int
+
+    :param **kwargs: any other keyword arguments passed to this function will
+        be posted to the API as params
+
+    :raises paste.fixture.AppError: if the HTTP status code of the response
+        from the CKAN API is different from the status param passed to this
+        function
+
+    :returns: the 'result' or 'error' dictionary from the CKAN API response
+    :rtype: dictionary
+
+    '''
+    params = json.dumps(kwargs)
+    response = app.post('/api/action/{0}'.format(action), params=params,
+            extra_environ={'Authorization': str(apikey)}, status=status)
+    if status in (200,):
+        assert response.json['success'] is True
+        return response.json['result']
+    else:
+        assert response.json['success'] is False
+        return response.json['error']

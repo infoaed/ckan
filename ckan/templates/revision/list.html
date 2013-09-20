@@ -1,21 +1,19 @@
-<html xmlns:py="http://genshi.edgewall.org/"
-  xmlns:xi="http://www.w3.org/2001/XInclude"
-  py:strip="">
-  
-  <py:def function="page_title">Revision History</py:def>
-  <py:def function="page_heading">Revision History</py:def>
-  <py:def function="body_class">${h.literal('no-sidebar')}</py:def>
+{% extends "revision/read_base.html" %}
 
-  <div py:match="content">
-    <p>Track the most recent changes to the system, with most recent
-    changes first.</p>
-      
-    ${c.page.pager()}
+{% block subtitle %}{{ _('Revision History') }}{% endblock %}
 
-    ${revision_list(c.page.items)}
-    
-    ${c.page.pager()}
-  </div>
+{% block breadcrumb_content %}
+  <li class="active"><a href="" title="{{ _('Revision History') }}">{{ _('Revisions') }}</a></li>
+{% endblock %}
 
-  <xi:include href="layout.html" />
-</html>
+{% block primary_content_inner %}
+  <h1>{{ _('Revision History') }}</h1>
+
+  {{ c.page.pager() }}
+
+  {% block revisions_list %}
+    {% snippet "revision/snippets/revisions_list.html", revisions=c.page.items %}
+  {% endblock %}
+
+  {{ c.page.pager() }}
+{% endblock %}

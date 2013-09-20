@@ -17,8 +17,8 @@ import domain_object
 import activity
 import extension
 
-import ckan.misc
-import ckan.lib.dictization
+import ckan.lib.maintain as maintain
+import ckan.lib.dictization as dictization
 
 __all__ = ['Package', 'package_table', 'package_revision_table',
            'PACKAGE_NAME_MAX_LENGTH', 'PACKAGE_NAME_MIN_LENGTH',
@@ -42,7 +42,11 @@ package_table = Table('package', meta.metadata,
         Column('maintainer_email', types.UnicodeText),
         Column('notes', types.UnicodeText),
         Column('license_id', types.UnicodeText),
-        Column('type', types.UnicodeText),
+        Column('type', types.UnicodeText, default=u'dataset'),
+        Column('owner_org', types.UnicodeText),
+        Column('creator_user_id', types.UnicodeText),
+        Column('metadata_modified', types.DateTime, default=datetime.datetime.utcnow),
+        Column('private', types.Boolean, default=False),
 )
 
 
@@ -62,7 +66,7 @@ class Package(vdm.sqlalchemy.RevisionedObjectMixin,
         from ckan import model
         super(Package, self).__init__(**kw)
         resource_group = model.ResourceGroup(label="default")
-        self.resource_groups.append(resource_group)
+        self.resource_groups_all.append(resource_group)
 
     @classmethod
     def search_by_name(cls, text_query):
@@ -85,82 +89,23 @@ class Package(vdm.sqlalchemy.RevisionedObjectMixin,
             return []
 
         assert len(self.resource_groups_all) == 1, "can only use resources on packages if there is only one resource_group"
-        return self.resource_groups_all[0].resources
-
-    def update_resources(self, res_dicts, autoflush=True):
-        '''Change this package\'s resources.
-        @param res_dicts - ordered list of dicts, each detailing a resource
-        The resource dictionaries contain 'url', 'format' etc. Optionally they
-        can also provide the 'id' of the Resource, to help matching
-        res_dicts to existing Resources. Otherwise, it searches
-        for an otherwise exactly matching Resource.
-        The caller is responsible for creating a revision and committing.'''
-        from ckan import model
-        assert isinstance(res_dicts, (list, tuple))
-        # Map the incoming res_dicts (by index) to existing resources
-        index_to_res = {}
-        # Match up the res_dicts by id
-        def get_resource_identity(resource_obj_or_dict):
-            if isinstance(resource_obj_or_dict, dict):
-                # Convert dict into a Resource object, since that ensures
-                # all columns exist when you redictize it. This object is
-                # garbage collected as it isn't added to the Session.
-                res_keys = set(resource_obj_or_dict.keys()) - \
-                           set(('id', 'position'))
-                res_dict = dict([(res_key, resource_obj_or_dict[res_key]) \
-                                 for res_key in res_keys])
-                resource = model.Resource(**res_dict)
-            else:
-                resource = resource_obj_or_dict
-            res_dict = resource.as_dict(core_columns_only=True)
-            del res_dict['created']
-            return res_dict
-        existing_res_identites = [get_resource_identity(res) \
-                                  for res in self.resources]
-        for i, res_dict in enumerate(res_dicts):
-            assert isinstance(res_dict, dict)
-            id = res_dict.get('id')
-            if id:
-                res = meta.Session.query(model.Resource).autoflush(autoflush).get(id)
-                if res:
-                    index_to_res[i] = res
-            else:
-                res_identity = get_resource_identity(res_dict)
-                try:
-                    matching_res_index = existing_res_identites.index(res_identity)
-                except ValueError:
-                    continue
-                index_to_res[i] = self.resources[matching_res_index]
-
-        # Edit resources and create the new ones
-        new_res_list = []
-
-        for i, res_dict in enumerate(res_dicts):
-            if i in index_to_res:
-                res = index_to_res[i]
-                for col in set(res_dict.keys()) - set(('id', 'position')):
-                    setattr(res, col, res_dict[col])
-            else:
-                # ignore particular keys that disrupt creation of new resource
-                for key in set(res_dict.keys()) & set(('id', 'position')):
-                    del res_dict[key]
-                res = model.Resource(**res_dict)
-                meta.Session.add(res)
-            new_res_list.append(res)
-        self.resource_groups[0].resources = new_res_list
+        return [resource for resource in 
+                self.resource_groups_all[0].resources_all
+                if resource.state <> 'deleted']
 
     def related_packages(self):
         return [self]
 
     def add_resource(self, url, format=u'', description=u'', hash=u'', **kw):
         import resource
-        self.resources.append(resource.Resource(
-            resource_group_id=self.resource_groups[0].id,
+        self.resource_groups_all[0].resources_all.append(resource.Resource(
+            resource_group_id=self.resource_groups_all[0].id,
             url=url,
             format=format,
             description=description,
             hash=hash,
-            **kw))
+            **kw)
+        )
 
     def add_tag(self, tag):
         import ckan.model as model
@@ -273,11 +218,9 @@ class Package(vdm.sqlalchemy.RevisionedObjectMixin,
             if self.metadata_modified else None
         _dict['metadata_created'] = self.metadata_created.isoformat() \
             if self.metadata_created else None
-        _dict['notes_rendered'] = ckan.misc.MarkdownFormat().to_html(self.notes)
-        #tracking
-        import ckan.model as model
-        tracking = model.TrackingSummary.get_for_package(self.id)
-        _dict['tracking_summary'] = tracking
+        import ckan.lib.helpers as h
+        _dict['notes_rendered'] = h.render_markdown(self.notes)
+        _dict['type'] = self.type or u'dataset'
         return _dict
 
     def add_relationship(self, type_, related_package, comment=u''):
@@ -525,52 +468,15 @@ class Package(vdm.sqlalchemy.RevisionedObjectMixin,
         return results
 
     @property
-    def metadata_modified(self):
-        """
-        Return most recent timestamp for revisions related to this package.
-        NB Excludes changes to the package's groups
-        """
-        from ckan import model
-        where = [model.package_table.c.id == self.id]
-        where_clauses = [
-            and_(model.package_table.c.revision_id == model.revision_table.c.id, *where),
-            and_(model.package_extra_table.c.package_id == model.package_table.c.id,
-                 model.package_extra_table.c.revision_id == model.revision_table.c.id, *where),
-            and_(model.package_relationship_table.c.subject_package_id == model.package_table.c.id,
-                 model.package_relationship_table.c.revision_id == model.revision_table.c.id, *where),
-            and_(model.package_relationship_table.c.object_package_id == model.package_table.c.id,
-                 model.package_relationship_table.c.revision_id == model.revision_table.c.id, *where),
-            and_(model.resource_group_table.c.package_id == model.package_table.c.id,
-                 model.resource_group_table.c.revision_id == model.revision_table.c.id, *where),
-            and_(model.resource_group_table.c.package_id == model.package_table.c.id,
-                 model.resource_table.c.resource_group_id == model.resource_group_table.c.id,
-                 model.resource_table.c.revision_id == model.revision_table.c.id, *where),
-            and_(model.package_tag_table.c.package_id == model.package_table.c.id,
-                 model.package_tag_table.c.revision_id == model.revision_table.c.id, *where)
-            ]
-
-        query = union(*[select([model.revision_table.c.timestamp], x) for x in where_clauses]
-                      ).order_by('timestamp DESC').limit(1)
-        # Use current connection because we might be in a 'before_commit' of
-        # a SessionExtension - only by using the current connection can we get
-        # at the newly created revision etc. objects.
-        conn = model.Session.connection()
-        result = conn.execute(query).fetchone()
-
-        if result:
-            result_datetime = _types.iso_date_to_datetime_for_sqlite(result[0])
-            timestamp_without_usecs = result_datetime.utctimetuple()
-            usecs = float(result_datetime.microsecond) / 1e6
-            # use timegm instead of mktime, because we don't want it localised
-            timestamp_float = timegm(timestamp_without_usecs) + usecs
-            return datetime.datetime.utcfromtimestamp(timestamp_float)
-
-    @property
+    @maintain.deprecated('`is_private` attriute of model.Package is ' +
+                         'deprecated and should not be used.  Use `private`')
     def is_private(self):
         """
+        DEPRECATED in 2.1
+
         A package is private if belongs to any private groups
         """
-        return bool(self.get_groups(capacity='private'))
+        return self.private
 
     def is_in_group(self, group):
         return group in self.get_groups()
@@ -646,7 +552,7 @@ class Package(vdm.sqlalchemy.RevisionedObjectMixin,
                 activity_type = 'deleted'
 
         try:
-            d = {'package': ckan.lib.dictization.table_dictize(self,
+            d = {'package': dictization.table_dictize(self,
                 context={'model': ckan.model})}
             return activity.Activity(user_id, self.id, revision.id,
                     "%s package" % activity_type, d)
@@ -667,7 +573,7 @@ class Package(vdm.sqlalchemy.RevisionedObjectMixin,
         if activity_type == 'changed' and self.state == u'deleted':
             activity_type = 'deleted'
 
-        package_dict = ckan.lib.dictization.table_dictize(self,
+        package_dict = dictization.table_dictize(self,
                 context={'model':ckan.model})
         return activity.ActivityDetail(activity_id, self.id, u"Package", activity_type,
             {'package': package_dict })

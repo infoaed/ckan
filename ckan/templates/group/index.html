@@ -1,24 +1,41 @@
-<html xmlns:py="http://genshi.edgewall.org/"
-  xmlns:i18n="http://genshi.edgewall.org/i18n"
-  xmlns:xi="http://www.w3.org/2001/XInclude"
-  py:strip="">
-  
-  <py:def function="page_title">Groups of Datasets</py:def>
-  <py:def function="page_heading">Groups of Datasets</py:def>
+{% extends "page.html" %}
 
-  <py:match path="primarysidebar">
-    <li class="widget-container boxed widget_text">
-      <h3>What Are Groups?</h3>
-      <span i18n:msg="">Whilst tags are great at collecting datasets together, there are occasions when you want to restrict users from editing a collection. A <strong>group</strong> can be set-up to specify which users have permission to add or remove datasets from it.</span>
-    </li>
-  </py:match>
+{% block subtitle %}{{ _('Groups of Datasets') }}{% endblock %}
 
-  
-  <div py:match="content">
-    ${c.page.pager()}
-    ${group_list_from_dict(c.page.items)}
-    ${c.page.pager()}
-  </div>
+{% block breadcrumb_content %}
+  <li class="active">{% link_for _('Groups'), controller='group', action='index' %}</li>
+{% endblock %}
 
-  <xi:include href="layout.html" />
-</html>
+{% block page_header %}{% endblock %}
+
+{% block page_primary_action %}
+  {% if h.check_access('group_create') %}
+    {% link_for _('Add Group'), controller='group', action='new', class_='btn btn-primary', icon='plus-sign-alt' %}
+  {% endif %}
+{% endblock %}
+
+{% block primary_content_inner %}
+      <h1 class="hide-heading">{{ _('Groups') }}</h1>
+      {% block groups_search_form %}
+        {% snippet 'snippets/search_form.html', type='group', query=c.q, sorting_selected=c.sort_by_selected, count=c.page.item_count, placeholder=_('Search groups...'), show_empty=request.params %}
+      {% endblock %}
+      {% block groups_list %}
+      {% if c.page.items or request.params %}
+        {% snippet "group/snippets/group_list.html", groups=c.page.items %}
+      {% else %}
+        <p class="empty">
+          {{ _('There are currently no groups for this site') }}.
+          {% if h.check_access('group_create') %}
+            {% link_for _('How about creating one?'), controller='group', action='new' %}</a>.
+          {% endif %}
+        </p>
+      {% endif %}
+      {% endblock %}
+    {% block page_pagination %}
+    {{ c.page.pager() }}
+    {% endblock %}
+{% endblock %}
+
+{% block secondary_content %}
+  {% snippet "group/snippets/helper.html" %}
+{% endblock %}

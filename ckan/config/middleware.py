@@ -17,17 +17,20 @@ from pylons.wsgiapp import PylonsApp
 from routes.middleware import RoutesMiddleware
 from repoze.who.config import WhoConfig
 from repoze.who.middleware import PluggableAuthenticationMiddleware
+from fanstatic import Fanstatic
 
 from ckan.plugins import PluginImplementations
 from ckan.plugins.interfaces import IMiddleware
-from ckan.lib.i18n import get_locales
+from ckan.lib.i18n import get_locales_from_config
 
 from ckan.config.environment import load_environment
+import ckan.lib.app_globals as app_globals
 
-def make_app(global_conf, full_stack=True, static_files=True, **app_conf):
+
+def make_app(conf, full_stack=True, static_files=True, **app_conf):
     """Create a Pylons WSGI application and return it
 
-    ``global_conf``
+    ``conf``
         The inherited configuration for this application. Normally from
         the [DEFAULT] section of the Paste ini file.
 
@@ -48,25 +51,49 @@ def make_app(global_conf, full_stack=True, static_files=True, **app_conf):
 
     """
     # Configure the Pylons environment
-    load_environment(global_conf, app_conf)
+    load_environment(conf, app_conf)
 
     # The Pylons WSGI app
     app = PylonsApp()
+    # set pylons globals
+    app_globals.reset()
 
     for plugin in PluginImplementations(IMiddleware):
         app = plugin.make_middleware(app, config)
 
     # Routing/Session/Cache Middleware
     app = RoutesMiddleware(app, config['routes.map'])
+    # we want to be able to retrieve the routes middleware to be able to update
+    # the mapper.  We store it in the pylons config to allow this.
+    config['routes.middleware'] = app
     app = SessionMiddleware(app, config)
     app = CacheMiddleware(app, config)
-    
+
     # CUSTOM MIDDLEWARE HERE (filtered by error handling middlewares)
     #app = QueueLogMiddleware(app)
-    
+
+    # Fanstatic
+    if asbool(config.get('debug', False)):
+        fanstatic_config = {
+            'versioning': True,
+            'recompute_hashes': True,
+            'minified': False,
+            'bottom': True,
+            'bundle': False,
+        }
+    else:
+        fanstatic_config = {
+            'versioning': True,
+            'recompute_hashes': False,
+            'minified': True,
+            'bottom': True,
+            'bundle': True,
+        }
+    app = Fanstatic(app, **fanstatic_config)
+
     if asbool(full_stack):
         # Handle Python exceptions
-        app = ErrorHandler(app, global_conf, **config['pylons.errorware'])
+        app = ErrorHandler(app, conf, **config['pylons.errorware'])
 
         # Display error documents for 401, 403, 404 status codes (and
         # 500 when debug is disabled)
@@ -74,15 +101,15 @@ def make_app(global_conf, full_stack=True, static_files=True, **app_conf):
             app = StatusCodeRedirect(app, [400, 404])
         else:
             app = StatusCodeRedirect(app, [400, 404, 500])
-    
+
     # Initialize repoze.who
-    who_parser = WhoConfig(global_conf['here'])
+    who_parser = WhoConfig(conf['here'])
     who_parser.parse(open(app_conf['who.config_file']))
 
     if asbool(config.get('openid_enabled', 'true')):
         from repoze.who.plugins.openid.identification import OpenIdIdentificationPlugin
         # Monkey patches for repoze.who.openid
-        # Fixes #1659 - enable log-out when CKAN mounted at non-root URL 
+        # Fixes #1659 - enable log-out when CKAN mounted at non-root URL
         from ckan.lib import repoze_patch
         OpenIdIdentificationPlugin.identify = repoze_patch.identify
         OpenIdIdentificationPlugin.redirect_to_logged_in = repoze_patch.redirect_to_logged_in
@@ -93,7 +120,7 @@ def make_app(global_conf, full_stack=True, static_files=True, **app_conf):
                 not isinstance(i, OpenIdIdentificationPlugin)]
         who_parser.challengers = [i for i in who_parser.challengers if \
                 not isinstance(i, OpenIdIdentificationPlugin)]
-    
+
     app = PluggableAuthenticationMiddleware(app,
                 who_parser.identifiers,
                 who_parser.authenticators,
@@ -102,10 +129,10 @@ def make_app(global_conf, full_stack=True, static_files=True, **app_conf):
                 who_parser.request_classifier,
                 who_parser.challenge_decider,
                 logging.getLogger('repoze.who'),
-                logging.WARN, # ignored
+                logging.WARN,  # ignored
                 who_parser.remote_user_key,
            )
-    
+
     # Establish the Registry for this application
     app = RegistryManager(app)
 
@@ -128,16 +155,18 @@ def make_app(global_conf, full_stack=True, static_files=True, **app_conf):
                     StaticURLParser(public_path.strip(),
                         cache_max_age=static_max_age)
                 )
-        app = Cascade(extra_static_parsers+static_parsers)
+        app = Cascade(extra_static_parsers + static_parsers)
 
     # Page cache
     if asbool(config.get('ckan.page_cache_enabled')):
         app = PageCacheMiddleware(app, config)
 
-    # Tracking add config option
+    # Tracking
     if asbool(config.get('ckan.tracking_enabled', 'false')):
         app = TrackingMiddleware(app, config)
+
     return app
+
 
 class I18nMiddleware(object):
     """I18n Middleware selects the language based on the url
@@ -145,7 +174,7 @@ class I18nMiddleware(object):
     def __init__(self, app, config):
         self.app = app
         self.default_locale = config.get('ckan.locale_default', 'en')
-        self.local_list = get_locales()
+        self.local_list = get_locales_from_config()
 
     def __call__(self, environ, start_response):
         # strip the language selector from the requested url
@@ -173,13 +202,13 @@ class I18nMiddleware(object):
             # Current application url
             path_info = environ['PATH_INFO']
             # sort out weird encodings
-            path_info = '/'.join(urllib.quote(pce,'') for pce in path_info.split('/'))
+            path_info = '/'.join(urllib.quote(pce, '') for pce in path_info.split('/'))
 
             qs = environ.get('QUERY_STRING')
-            # sort out weird encodings
-            qs = urllib.quote(qs, '')
 
             if qs:
+                # sort out weird encodings
+                #qs = urllib.quote(qs, '')
                 environ['CKAN_CURRENT_URL'] = '%s?%s' % (path_info, qs)
             else:
                 environ['CKAN_CURRENT_URL'] = path_info
@@ -292,7 +321,6 @@ class TrackingMiddleware(object):
         self.app = app
         self.engine = sa.create_engine(config.get('sqlalchemy.url'))
 
-
     def __call__(self, environ, start_response):
         path = environ['PATH_INFO']
         if path == '/_tracking':
@@ -310,8 +338,8 @@ class TrackingMiddleware(object):
             key = ''.join([
                 environ['HTTP_USER_AGENT'],
                 environ['REMOTE_ADDR'],
-                environ['HTTP_ACCEPT_LANGUAGE'],
-                environ['HTTP_ACCEPT_ENCODING'],
+                environ.get('HTTP_ACCEPT_LANGUAGE', ''),
+                environ.get('HTTP_ACCEPT_ENCODING', ''),
             ])
             key = hashlib.md5(key).hexdigest()
             # store key/data here

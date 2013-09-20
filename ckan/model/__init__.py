@@ -13,6 +13,7 @@ import meta
 from meta import (
     Session,
     engine_is_sqlite,
+    engine_is_pg,
 )
 from core import (
     System,
@@ -52,42 +53,33 @@ from authz import (
     UserObjectRole,
     PackageRole,
     GroupRole,
-    AuthorizationGroupRole,
     SystemRole,
     PSEUDO_USER__VISITOR,
     PSEUDO_USER__LOGGED_IN,
     init_authz_const_data,
     init_authz_configuration_data,
     add_user_to_role,
-    add_authorization_group_to_role,
     setup_user_roles,
     setup_default_user_roles,
     give_all_packages_default_user_roles,
     user_has_role,
     remove_user_from_role,
-    remove_authorization_group_from_role,
     clear_user_roles,
-)
-from authorization_group import (
-    AuthorizationGroup,
-    AuthorizationGroupUser,
-    user_in_authorization_group,
-    add_user_to_authorization_group,
-    remove_user_from_authorization_group,
 )
 from group import (
     Member,
     Group,
     member_revision_table,
+    group_revision_table,
     group_table,
     GroupRevision,
-    #MemberRevision,
-    #member_table,
+    MemberRevision,
+    member_table,
 )
 from group_extra import (
     GroupExtra,
-    #group_extra_table,
-    #GroupExtraRevision,
+    group_extra_table,
+    GroupExtraRevision,
 )
 from package_extra import (
     PackageExtra,
@@ -99,16 +91,17 @@ from resource import (
     Resource,
     ResourceGroup,
     ResourceRevision,
-    #DictProxy,
+    DictProxy,
     resource_group_table,
     resource_table,
     resource_revision_table,
-    #ResourceGroupRevision,
-    #resource_group_revision_table,
+    ResourceGroupRevision,
+    resource_group_revision_table,
 )
 from tracking import (
     tracking_summary_table,
     TrackingSummary,
+    tracking_raw_table
 )
 from rating import (
     Rating,
@@ -126,7 +119,7 @@ from package_relationship import (
 )
 from task_status import (
     TaskStatus,
-    #task_status_table,
+    task_status_table,
 )
 from vocabulary import (
     Vocabulary,
@@ -136,8 +129,8 @@ from vocabulary import (
 from activity import (
     Activity,
     ActivityDetail,
-    #activity_table,
-    #activity_detail_table,
+    activity_table,
+    activity_detail_table,
 )
 from term_translation import (
     term_translation_table,
@@ -145,6 +138,21 @@ from term_translation import (
 from follower import (
     UserFollowingUser,
     UserFollowingDataset,
+    UserFollowingGroup,
+)
+from system_info import (
+    system_info_table,
+    SystemInfo,
+    get_system_info,
+    set_system_info,
+    delete_system_info,
+)
+from domain_object import (
+    DomainObjectOperation,
+    DomainObject,
+)
+from dashboard import (
+    Dashboard,
 )
 
 import ckan.migration
@@ -454,7 +462,8 @@ def revision_as_dict(revision, include_packages=True, include_groups=True,
         ))
     if include_packages:
         revision_dict['packages'] = [getattr(pkg, ref_package_by) \
-                                     for pkg in revision.packages if pkg]
+                                     for pkg in revision.packages
+                                     if (pkg and not pkg.private)]
     if include_groups:
         revision_dict['groups'] = [getattr(grp, ref_package_by) \
                                      for grp in revision.groups if grp]

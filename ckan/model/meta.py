@@ -8,9 +8,9 @@ import sqlalchemy.orm as orm
 from sqlalchemy.orm.session import SessionExtension
 
 import extension
-import ckan.lib.activity
+import ckan.lib.activity_streams_session_extension as activity
 
-__all__ = ['Session', 'engine_is_sqlite']
+__all__ = ['Session', 'engine_is_sqlite', 'engine_is_pg']
 
 
 class CkanCacheExtension(SessionExtension):
@@ -60,7 +60,7 @@ class CkanSessionExtension(SessionExtension):
                                     'changed': set()}
 
         changed = [obj for obj in session.dirty if 
-            session.is_modified(obj, include_collections=False)]
+            session.is_modified(obj, include_collections=False, passive=True)]
 
         session._object_cache['new'].update(session.new)
         session._object_cache['deleted'].update(session.deleted)
@@ -133,7 +133,7 @@ Session = orm.scoped_session(orm.sessionmaker(
     extension=[CkanCacheExtension(),
                CkanSessionExtension(),
                extension.PluginSessionExtension(),
-               ckan.lib.activity.DatasetActivitySessionExtension()],
+               activity.DatasetActivitySessionExtension()],
 ))
 
 create_local_session = orm.sessionmaker(
@@ -143,7 +143,7 @@ create_local_session = orm.sessionmaker(
     extension=[CkanCacheExtension(),
                CkanSessionExtension(),
                extension.PluginSessionExtension(),
-               ckan.lib.activity.DatasetActivitySessionExtension()],
+               activity.DatasetActivitySessionExtension()],
 )
 
 #mapper = Session.mapper
@@ -153,8 +153,14 @@ mapper = orm.mapper
 # names, you'll need a metadata for each database
 metadata = MetaData()
 
-def engine_is_sqlite():
-    """
-    Returns true iff the engine is connected to a sqlite database.
-    """
-    return engine.url.drivername == 'sqlite'
+
+def engine_is_sqlite(sa_engine=None):
+    # Returns true iff the engine is connected to a sqlite database.
+    return (sa_engine or engine).url.drivername == 'sqlite'
+
+
+def engine_is_pg(sa_engine=None):
+    # Returns true iff the engine is connected to a postgresql database.
+    # According to http://docs.sqlalchemy.org/en/latest/core/engines.html#postgresql
+    # all Postgres driver names start with `postgresql`
+    return (sa_engine or engine).url.drivername.startswith('postgresql')

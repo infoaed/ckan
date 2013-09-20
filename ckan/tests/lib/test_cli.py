@@ -6,7 +6,7 @@ from nose.tools import assert_equal
 from ckan import model
 from ckan.lib.cli import ManageDb,SearchIndexCommand
 from ckan.lib.create_test_data import CreateTestData
-from ckan.lib.helpers import json
+from ckan.common import json
 
 from ckan.lib.search import index_for,query_for
 
@@ -80,7 +80,7 @@ class TestSearch:
 
         # Rebuild index
         self.search.args = ()
-        self.search.options = FakeOptions(only_missing=False,force=False,refresh=False)
+        self.search.options = FakeOptions(only_missing=False,force=False,refresh=False,commit_each=False)
         self.search.rebuild()
         pkg_count = model.Session.query(model.Package).filter(model.Package.state==u'active').count()
 
@@ -103,7 +103,7 @@ class TestSearch:
 
         # Rebuild index for annakarenina
         self.search.args = ('rebuild annakarenina').split()
-        self.search.options = FakeOptions(only_missing=False,force=False,refresh=False)
+        self.search.options = FakeOptions(only_missing=False,force=False,refresh=False,commit_each=False)
         self.search.rebuild()
 
         self.query.run({'q':'*:*'})
