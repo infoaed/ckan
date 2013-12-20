@@ -1,16 +1,13 @@
 import re
-import logging
-
 from pylons import config
 from solr import SolrException
 from paste.deploy.converters import asbool
 from paste.util.multidict import MultiDict
-
-from ckan.common import json
-from ckan.lib.search.common import make_connection, SearchError, SearchQueryError
-import ckan.logic as logic
-import ckan.model as model
-
+from ckan import model
+from ckan.logic import get_action
+from ckan.lib.helpers import json
+from common import make_connection, SearchError, SearchQueryError
+import logging
 log = logging.getLogger(__name__)
 
 _open_licenses = None
@@ -29,7 +26,7 @@ solr_regex = re.compile(r'([\\+\-&|!(){}\[\]^"~*?:])')
 
 def escape_legacy_argument(val):
     # escape special chars \+-&|!(){}[]^"~*?:
-    return solr_regex.sub(r'\\\1', val)
+        return solr_regex.sub(r'\\\1', val)
 
 def convert_legacy_parameters_to_solr(legacy_params):
     '''API v1 and v2 allowed search params that the SOLR syntax does not
@@ -185,7 +182,7 @@ class TagSearchQuery(SearchQuery):
             'offset': options.get('offset'),
             'limit': options.get('limit')
         }
-        results = logic.get_action('tag_search')(context, data_dict)
+        results = get_action('tag_search')(context, data_dict)
 
         if not options.return_objects:
             # if options.all_fields is set, return a dict
@@ -229,7 +226,7 @@ class ResourceSearchQuery(SearchQuery):
             'limit': options.get('limit'),
             'order_by': options.get('order_by')
         }
-        results = logic.get_action('resource_search')(context, data_dict)
+        results = get_action('resource_search')(context, data_dict)
 
         if not options.return_objects:
             # if options.all_fields is set, return a dict
@@ -262,6 +259,10 @@ class PackageSearchQuery(SearchQuery):
         return [r.get('id') for r in data.results]
 
     def get_index(self,reference):
+        '''
+        For a given package reference (ID or name), returns the record for it
+        from the SOLR index.
+        '''
         query = {
             'rows': 1,
             'q': 'name:%s OR id:%s' % (reference,reference),
@@ -279,12 +280,11 @@ class PackageSearchQuery(SearchQuery):
             data = json.loads(solr_response)
 
             if data['response']['numFound'] == 0:
-                raise SearchError('Dataset not found in the search index: %s' % reference)
+             raise SearchError('Dataset not found in the search index: %s' % reference)
             else:
                 return data['response']['docs'][0]
         except Exception, e:
-            if not isinstance(e, SearchError):
-                log.exception(e)
+            log.exception(e)
             raise SearchError(e)
         finally:
             conn.close()
@@ -335,6 +335,7 @@ class PackageSearchQuery(SearchQuery):
 
         # faceting
         query['facet'] = query.get('facet', 'true')
+        import pdb; pdb.set_trace()
         query['facet.limit'] = query.get('facet.limit', config.get('search.facets.limit', '50'))
         query['facet.mincount'] = query.get('facet.mincount', 1)
 
@@ -362,6 +363,7 @@ class PackageSearchQuery(SearchQuery):
         except SolrException, e:
             raise SearchError('SOLR returned an error running query: %r Error: %r' %
                               (query, e.reason))
+
         try:
             data = json.loads(solr_response)
             response = data['response']
