@@ -420,16 +420,22 @@ class PackageController(base.BaseController):
             try:
                 params = {'id': request.params.getone('pkg_name'),
                           'diff': request.params.getone('selected1'),
-                          'oldid': request.params.getone('selected2'),
+                          'oldid': request.params.get('selected2'),
                           }
             except KeyError, e:
                 if 'pkg_name' in dict(request.params):
                     id = request.params.getone('pkg_name')
-                c.error = \
-                    _('Select two revisions before doing the comparison.')
+                h.flash_error(
+                    _('Select two revisions before doing the comparison.'))
             else:
-                params['diff_entity'] = 'package'
-                h.redirect_to(controller='revision', action='diff', **params)
+                if params['diff'] == params['oldid']:
+                    h.flash_error('Select two different revisions before doing the comparison.')
+                else:
+                    params['diff_entity'] = 'package'
+                    if not params['oldid']:
+                        # default to the previous revision
+                        pass
+                    h.redirect_to(controller='revision', action='diff', **params)
 
         context = {'model': model, 'session': model.Session,
                    'user': c.user or c.author, 'auth_user_obj': c.userobj}
