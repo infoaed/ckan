@@ -330,6 +330,7 @@ def member_list(context, data_dict=None):
             for m in q.all()]
 
 def _group_or_org_list(context, data_dict, is_org=False):
+    t = Timer()
 
     model = context['model']
     user = context['user']
@@ -357,9 +358,13 @@ def _group_or_org_list(context, data_dict, is_org=False):
                                total=1)
 
     all_fields = data_dict.get('all_fields', None)
-
+    include_extras = asbool(data_dict.get('include_extras', False))
 
     query = model.Session.query(model.Group).join(model.GroupRevision)
+    if all_fields and include_extras:
+        # this does an eager load of the extras, avoiding an sql query every
+        # time group_list_dictize accesses a group's extra.
+        query = query.options(sqlalchemy.orm.joinedload(model.Group._extras))
     query = query.filter(model.GroupRevision.state=='active')
     query = query.filter(model.GroupRevision.current==True)
     if groups:
@@ -376,15 +381,41 @@ def _group_or_org_list(context, data_dict, is_org=False):
     query = query.filter(model.GroupRevision.is_organization==is_org)
 
     groups = query.all()
-    group_list = model_dictize.group_list_dictize(groups, context,
-                                                  lambda x:x[sort_info[0][0]],
-                                                  sort_info[0][1] == 'desc')
+    # TEST TIMER to remove
+    t.check('1')
+    group_list_context = dict(context.items()[:])
+    if not all_fields:
+        group_list_context.update((
+            ('include_tags', False),
+            ('include_extras', False),
+            ))
+    else:
+        group_list_context.update((
+            ('include_tags', asbool(data_dict.get('include_tags', False))),
+            ('include_extras', include_extras),
+            ))
+    group_list = model_dictize.group_list_dictize(
+        groups, group_list_context,
+        sort_key=lambda x: x[sort_info[0][0]],
+        reverse=sort_info[0][1] == 'desc',
+        with_package_counts=all_fields or sort_info[0][0] == 'packages',
+        include_groups=asbool(data_dict.get('include_groups', False)))
+    t.check('end list')
 
     if not all_fields:
         group_list = [group[ref_group_by] for group in group_list]
 
     return group_list
 
+# TEST TIMER to remove
+import time
+class Timer:
+    def __init__(self):
+        self.start = time.time()
+        self.name = str(self.start)[-2:]
+
+    def check(self, msg):
+        print 'TIME', self.name, msg, '%sms' % int((time.time() - self.start)*1000)
 
 def group_list(context, data_dict):
     '''Return a list of the names of the site's groups.
@@ -399,7 +430,16 @@ def group_list(context, data_dict):
     :param groups: a list of names of the groups to return, if given only
         groups whose names are in this list will be returned (optional)
     :type groups: list of strings
-    :param all_fields: return full group dictionaries instead of  just names
+    :param all_fields: return full group dictionaries instead of just names
+        (optional, default: ``False``)
+    :type all_fields: boolean
+    :param include_extras: include in the dicts the group extra fields
+        (optional, default: ``False``)
+    :type all_fields: boolean
+    :param include_tags: include the dicts the group tags
+        (optional, default: ``False``)
+    :type all_fields: boolean
+    :param include_groups: include in the dicts the groups the groups are in
         (optional, default: ``False``)
     :type all_fields: boolean
 
@@ -429,7 +469,16 @@ def organization_list(context, data_dict):
     :param organizations: a list of names of the groups to return, if given only
         groups whose names are in this list will be returned (optional)
     :type organizations: list of strings
-    :param all_fields: return full group dictionaries instead of  just names
+    :param all_fields: return full group dictionaries instead of just names
+        (optional, default: ``False``)
+    :type all_fields: boolean
+    :param include_extras: include in the dicts the group extra fields
+        (optional, default: ``False``)
+    :type all_fields: boolean
+    :param include_tags: include the dicts the group tags
+        (optional, default: ``False``)
+    :type all_fields: boolean
+    :param include_groups: include in the dicts the groups the groups are in
         (optional, default: ``False``)
     :type all_fields: boolean
 
