@@ -528,8 +528,8 @@ class GroupController(base.BaseController):
         appearing on the read page for the group (as they're connected via
         the group name)'''
         group = model.Group.get(grp['name'])
-        for dataset in group.packages():
-            search.rebuild(dataset.name)
+        package_ids = (package.id for package in group.packages())
+        search.rebuild(package_ids=package_ids)
 
     def _save_edit(self, id, context):
         try:
