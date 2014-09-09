@@ -39,6 +39,7 @@ entry_points = {
         'less = ckan.lib.cli:LessCommand',
         'datastore = ckanext.datastore.commands:SetupDatastoreCommand',
         'front-end-build = ckan.lib.cli:FrontEndBuildCommand',
+        'config-tool = ckan.lib.cli:ConfigToolCommand',
     ],
     'console_scripts': [
         'ckan-admin = bin.ckan_admin:Command',
