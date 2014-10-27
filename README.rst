@@ -19,7 +19,7 @@ tools and more. Read more at `ckan.org <http://ckan.org/>`_.
 Installation
 ------------
 
-See the `CKAN Documentation <http://docs.ckan.org>`_ for installation instructions.
+See the `CKAN Documentation <http://docs.ckan.org>`_ for installation instructions .
 
 
 Support
