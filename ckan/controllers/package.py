@@ -960,6 +960,18 @@ class PackageController(base.BaseController):
             data_dict['type'] = package_type
             context['message'] = data_dict.get('log_message', '')
             pkg_dict = get_action('package_create')(context, data_dict)
+
+            # The purpose of the below block is to detect an uploaded file in the request and save it as one
+            # additional resource for the package.
+            resource_dict = {}
+            resource_dict['name'] = data_dict['file_name']
+            resource_dict['description'] = data_dict['file_descr']
+            resource_dict['format'] = data_dict['file_format']
+            resource_dict['package_id'] = pkg_dict['id']
+            resource_dict['upload'] = data_dict['file_uploaded']
+            if resource_dict.get('upload') or isinstance(resource_dict.get('upload'), cgi.FieldStorage):
+                get_action('resource_create')(context, resource_dict)
+
             if ckan_phase:
                 # redirect to add dataset resources
                 url = h.url_for(controller='package',
@@ -1001,6 +1013,10 @@ class PackageController(base.BaseController):
         try:
             data_dict = clean_dict(dict_fns.unflatten(
                 tuplize_dict(parse_params(request.POST))))
+
+            show_dict = get_action('package_show')(context, {'id': name_or_id})
+            package_id = show_dict['id']
+
             if '_ckan_phase' in data_dict:
                 # we allow partial updates to not destroy existing resources
                 context['allow_partial_update'] = True
@@ -1018,6 +1034,17 @@ class PackageController(base.BaseController):
                     context, data_dict)
             c.pkg = context['package']
             c.pkg_dict = pkg
+
+            # The purpose of the below block is to detect an uploaded file in the request and save it as one
+            # additional resource for the package.
+            resource_dict = {}
+            resource_dict['name'] = data_dict['file_name']
+            resource_dict['description'] = data_dict['file_descr']
+            resource_dict['format'] = data_dict['file_format']
+            resource_dict['package_id'] = data_dict['id']
+            resource_dict['upload'] = data_dict['file_uploaded']
+            if resource_dict.get('upload') or isinstance(resource_dict.get('upload'), cgi.FieldStorage):
+                get_action('resource_create')(context, resource_dict)
 
             self._form_save_redirect(pkg['name'], 'edit', package_type=package_type)
         except NotAuthorized:

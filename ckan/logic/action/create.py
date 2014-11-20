@@ -268,6 +268,14 @@ def resource_create(context, data_dict):
     try:
         context['defer_commit'] = True
         context['use_cache'] = False
+
+        # The purpose of the below block is take out the "unpublished" flags before issuing 'package_update',
+        # because otherwise the latter will always set unpublished to "true" for some reason.
+        del pkg_dict['unpublished']
+        for idx, extra in enumerate(pkg_dict['extras']):
+            if extra['key'] == 'unpublished':
+                del pkg_dict['extras'][idx]
+
         _get_action('package_update')(context, pkg_dict)
         context.pop('defer_commit')
     except ValidationError, e:
