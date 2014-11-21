@@ -271,12 +271,14 @@ def resource_create(context, data_dict):
 
         # The purpose of the below two blocks is take out the "unpublished" and "core-dataset" flags before issuing 'package_update',
         # because otherwise the latter will always set these flags to "true" for some reason.
-        del pkg_dict['unpublished']
+        if pkg_dict['unpublished']:
+            del pkg_dict['unpublished']
         for idx, extra in enumerate(pkg_dict['extras']):
             if extra['key'] == 'unpublished':
                 del pkg_dict['extras'][idx]
 
-        del pkg_dict['core-dataset']
+        if pkg_dict['core-dataset']:
+            del pkg_dict['core-dataset']
         for idx, extra in enumerate(pkg_dict['extras']):
             if extra['key'] == 'core-dataset':
                 del pkg_dict['extras'][idx]
