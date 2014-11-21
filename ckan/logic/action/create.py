@@ -271,17 +271,17 @@ def resource_create(context, data_dict):
 
         # The purpose of the below two blocks is take out the "unpublished" and "core-dataset" flags before issuing 'package_update',
         # because otherwise the latter will always set these flags to "true" for some reason.
-        if pkg_dict['unpublished']:
+        if pkg_dict.has_key('unpublished'):
             del pkg_dict['unpublished']
         for idx, extra in enumerate(pkg_dict['extras']):
             if extra['key'] == 'unpublished':
                 del pkg_dict['extras'][idx]
 
-        if pkg_dict['core-dataset']:
+        if pkg_dict.has_key('core-dataset'):
             del pkg_dict['core-dataset']
-        for idx, extra in enumerate(pkg_dict['extras']):
+        for idx1, extra in enumerate(pkg_dict['extras']):
             if extra['key'] == 'core-dataset':
-                del pkg_dict['extras'][idx]
+                del pkg_dict['extras'][idx1]
 
         _get_action('package_update')(context, pkg_dict)
         context.pop('defer_commit')
