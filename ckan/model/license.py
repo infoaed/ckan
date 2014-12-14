@@ -180,7 +180,7 @@ class LicenseOpenDataCommonsPDDL(DefaultLicense):
     domain_data = True
     id = "odc-pddl"
     is_okd_compliant = True
-    url = "http://www.opendefinition.org/licenses/odc-pddl"
+    url = "http://opendatacommons.org/licenses/pddl/"
 
     @property
     def title(self):
@@ -190,7 +190,7 @@ class LicenseOpenDataCommonsOpenDatabase(DefaultLicense):
     domain_data = True
     id = "odc-odbl"
     is_okd_compliant = True
-    url = "http://www.opendefinition.org/licenses/odc-odbl"
+    url = "http://opendatacommons.org/licenses/odbl/"
 
     @property
     def title(self):
@@ -200,7 +200,7 @@ class LicenseOpenDataAttribution(DefaultLicense):
     domain_data = True
     id = "odc-by"
     is_okd_compliant = True
-    url = "http://www.opendefinition.org/licenses/odc-by"
+    url = "http://opendatacommons.org/licenses/by/"
 
     @property
     def title(self):
@@ -211,30 +211,30 @@ class LicenseCreativeCommonsZero(DefaultLicense):
     domain_data = True
     id = "cc-zero"
     is_okd_compliant = True
-    url = "http://www.opendefinition.org/licenses/cc-zero"
+    url = "http://creativecommons.org/about/cc0"
 
     @property
     def title(self):
-        return _("Creative Commons CCZero")
+        return _("Creative Commons CC0")
 
 class LicenseCreativeCommonsAttribution(DefaultLicense):
     id = "cc-by"
     is_okd_compliant = True
-    url = "http://www.opendefinition.org/licenses/cc-by"
+    url = "http://creativecommons.org/licenses/by/3.0/"
 
     @property
     def title(self):
-        return _("Creative Commons Attribution")
+        return _("Creative Commons BY 3.0")
 
 class LicenseCreativeCommonsAttributionShareAlike(DefaultLicense):
     domain_content = True
     id = "cc-by-sa"
     is_okd_compliant = True
-    url = "http://www.opendefinition.org/licenses/cc-by-sa"
+    url = "http://creativecommons.org/licenses/by-sa/3.0/"
 
     @property
     def title(self):
-        return _("Creative Commons Attribution Share-Alike")
+        return _("Creative Commons BY-SA 3.0")
 
 class LicenseGNUFreeDocument(DefaultLicense):
     domain_content = True
