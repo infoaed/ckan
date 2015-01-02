@@ -29,11 +29,11 @@ class DateType(object):
     datetime_fields_indexes = {'min':0, 'max':1, 'digits':2, 'format_code':3}
     date_fields_order = {'db':('year', 'month', 'day'),
                          'form':('day', 'month', 'year')}
-    parsing_separators = {'date':'-/',
-                          'time':':\.'}
+    parsing_separators = {'date':'-/.',
+                          'time':':'}
     default_separators = {'db':{'date':'-',
                                 'time':':'},
-                          'form':{'date':'/',
+                          'form':{'date':'.',
                                   'time':':'},}
     field_code_map = {'year':'YYYY', 'month':'MM', 'day':'DD',
                       'hour':'HH', 'minute':'MM'}
@@ -174,7 +174,7 @@ class DateType(object):
 
             # Parse form value
             timedate_dict = cls.parse_timedate(form_str, 'form')
-                    
+
             # Check range of dates and format as standard string
             try:
                 db_datetime = cls.format(timedate_dict, 'db')
@@ -217,10 +217,11 @@ class DateType(object):
             if val < min_ or val > max_:
                 raise DateConvertError('%s value of "%s" is out of range.' % (field.capitalize(), val))
             if format_type == 'form':
-                int_format_string = '%d'
+                num_digits_1 = cls.datetime_fields[field][cls.datetime_fields_indexes['digits']]
+                int_format_string = '%%0%sd' % num_digits_1
             elif format_type == 'db':
                 num_digits = cls.datetime_fields['hour'][cls.datetime_fields_indexes['digits']]
-                int_format_string = '%%0%sd' % num_digits                
+                int_format_string = '%%0%sd' % num_digits
             str_datetime_dict[field] = int_format_string % val
 
         # assemble the date
