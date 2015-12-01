@@ -153,7 +153,11 @@ def _create_atom_id(resource_path, authority_name=None, date_string=None):
 
 
 class FeedController(base.BaseController):
-    base_url = config.get('ckan.site_url')
+
+    base_url = config.get('ckan.feeds_base_url')
+    if not base_url or base_url.isspace():
+        base_url = config.get('ckan.site_url')
+
 
     def _alternate_url(self, params, **kwargs):
         search_params = params.copy()
