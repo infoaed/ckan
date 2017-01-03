@@ -6067,10 +6067,8 @@ msgid "Recent changes to CKAN Dataset: "
 msgstr ""
 
 #: ckan/controllers/package.py:509
-#, fuzzy
-#| msgid "Unauthorized to delete package."
 msgid "Unauthorized to create a package"
-msgstr "Andmehulga kustutamine pole lubatud."
+msgstr "Kasutaja tuvastamata!"
 
 #: ckan/controllers/package.py:580 ckanext/datapusher/plugin.py:52
 #, fuzzy
