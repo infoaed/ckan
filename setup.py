@@ -148,7 +148,26 @@ setup(
             ('**.txt', 'genshi', {
                 'template_class': 'genshi.template:TextTemplate'
             }),
-        ]
+        ],
+        # this is to extract messages from extensions outside ckan repo
+        # btw javascript messages are extracted in shared asset repo
+        'i18n-ext/ckanext-dgu': [
+            ('ckanext/dgu/theme/templates/viz/**', 'ignore', None),
+            ('**.py', 'python', None),
+            ('**.html', 'ckan', None),
+        ],
+        'i18n-ext/ckanext-harvest': [
+            ('**.py', 'python', None),
+            ('**.html', 'ckan', None),
+        ],
+        'i18n-ext/ckanext-ga-report': [
+            ('**.py', 'python', None),
+            ('**.html','ckan', None),
+        ],
+        'i18n-ext/ckanext-spatial': [
+            ('**.py', 'python', None),
+            ('**.html', 'ckan', None),
+        ],
     },
     entry_points=entry_points,
     # setup.py test command needs a TestSuite so does not work with py.test
