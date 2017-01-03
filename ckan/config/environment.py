@@ -23,14 +23,56 @@ import ckan.logic as logic
 import ckan.new_authz as new_authz
 import ckan.lib.jinja_extensions as jinja_extensions
 
+from genshi.core import Attrs, QName, START, END, TEXT, _ensure
+from genshi.template.base import EXPR, SUB
+
 from ckan.common import _, ungettext
 
 log = logging.getLogger(__name__)
 
-
 # Suppress benign warning 'Unbuilt egg for setuptools'
 warnings.simplefilter('ignore', UserWarning)
 
+class _PickyTranslator(Translator):
+    '''To fix the Genshi i18n problem of empty strings getting filled
+    with the first item of MO file during translation (which is
+    actually a feature of MO spec).'''
+    
+    def regenerate(self, stream, ctxt=None, translate_text=True, translate_attrs=True):
+        '''Replicates parts of https://genshi.edgewall.org/browser/trunk/genshi/filters/i18n.py#L633'''
+        for kind, data, pos in stream:
+            if kind is START:
+                tag, attrs = data
+                for name, value in attrs:
+                    new_attrs = []
+                    changed = False
+                    # this is to make empty attributes untranslatable (otherwise leads to display of
+                    # msgid[0]="Project-Id-Version: PROJECT VERSION\\nReport-Msgid-Bugs-To: EMAIL@ADDRESS\\n")
+                    for name, value in attrs:
+                        if value=="":
+                            value = list(self(_ensure(value), ctxt, translate_text=False))
+                            changed = True
+                        new_attrs.append((name, list(self(_ensure(value), ctxt=ctxt, translate_text=translate_text))))
+                    if changed:
+                        attrs = Attrs(new_attrs)
+                yield kind, (tag, attrs), pos
+
+            #elif kind is TEXT:
+            #    yield kind, data, pos
+
+            #elif kind is SUB:
+            #    directives, substream = data
+            #    substream = list(self.regenerate(substream, ctxt=ctxt, translate_text=translate_text, translate_attrs=translate_attrs))
+            #    yield kind, (directives, substream), pos
+
+            else:
+                yield kind, data, pos
+
+    def __call__(self, stream, ctxt=None, translate_text=True, translate_attrs=True):
+        '''Make corrections to stream before sending to Genshi.'''
+        new_stream = self.regenerate(stream, ctxt=ctxt, translate_text=translate_text, translate_attrs=translate_attrs)
+        for (kind, data, pos) in super(_PickyTranslator, self).__call__(new_stream, ctxt=ctxt, translate_text=translate_text, translate_attrs=translate_attrs):
+            yield kind, data, pos    
 
 class _Helpers(object):
     ''' Helper object giving access to template helpers stopping
@@ -301,7 +343,7 @@ def update_config():
     config['pylons.app_globals'].template_paths = template_paths
 
     # Translator (i18n)
-    translator = Translator(pylons.translator)
+    translator = _PickyTranslator(pylons.translator)
 
     def template_loaded(template):
         translator.setup(template)
